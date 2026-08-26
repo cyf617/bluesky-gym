@@ -56,9 +56,11 @@ def make_env(kind, n_agents=N_AGENTS_MA, mdp_v1=False):
     mapping differ. Neutral ``[0, 0]`` trajectories match the base env.
     """
     if mdp_v1:
+        from gymnasium.wrappers import FlattenObservation
         from competitor.envs import CompetitionEnvV1, CompetitionZooEnvV1
         if kind == "sa":
-            return CompetitionEnvV1()
+            # Training uses FlattenObservation + MlpPolicy; eval must match.
+            return FlattenObservation(CompetitionEnvV1(render_mode=None))
         return CompetitionZooEnvV1(n_agents=n_agents)
     if kind == "sa":
         import gymnasium as gym
@@ -72,16 +74,24 @@ def make_env(kind, n_agents=N_AGENTS_MA, mdp_v1=False):
 def load_policy(kind, model_path=None):
     """Return an ``act(obs) -> action`` callable.
 
-    Default is the neutral 'fly straight to the goal' policy. Load your trained
-    model here, e.g.::
-
-        from stable_baselines3 import PPO
-        model = PPO.load(model_path)
-        return lambda obs: model.predict(obs, deterministic=True)[0]
+    Default is the neutral 'fly straight to the goal' policy. Load a trained
+    SB3 SAC/PPO zip with ``--model path/to/selected`` (the ``.zip`` suffix is
+    optional). The env must match training: for MDP v1 single-agent that means
+    ``--mdp-v1`` so observations are flattened.
     """
-    if model_path is not None:
-        raise NotImplementedError("load your trained policy in load_policy()")
-    return lambda obs: np.zeros(2, dtype=np.float32)
+    if model_path is None:
+        return lambda obs: np.zeros(2, dtype=np.float32)
+    from stable_baselines3 import PPO, SAC
+    try:
+        model = SAC.load(model_path)
+    except Exception:
+        model = PPO.load(model_path)
+
+    def act(obs):
+        action, _ = model.predict(obs, deterministic=True)
+        return np.asarray(action, dtype=np.float32).reshape(-1)
+
+    return act
 # =============================================================================
 
 
