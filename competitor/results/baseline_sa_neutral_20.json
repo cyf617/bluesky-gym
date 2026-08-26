@@ -1,0 +1,57 @@
+{
+  "policy": "neutral_[0,0]",
+  "env": "CompetitionEnv-v0",
+  "seed": 42,
+  "episodes": 20,
+  "note": "Do not use total_reward. Compare later runs on these 8 numbers: goal rate must not drop; safety items must go down.",
+  "metrics": [
+    {
+      "metric": "Goal completion rate [%]",
+      "key": "waypoint_reached",
+      "mean": 100.0,
+      "std": 0.0
+    },
+    {
+      "metric": "Flight time [s]",
+      "key": "flight_time",
+      "mean": 844.8,
+      "std": 152.71856468681207
+    },
+    {
+      "metric": "Intrusion events",
+      "key": "intrusion_events",
+      "mean": 1.0,
+      "std": 1.0
+    },
+    {
+      "metric": "Intrusion time [s]",
+      "key": "intrusion_time",
+      "mean": 77.1,
+      "std": 94.74117373138249
+    },
+    {
+      "metric": "Restricted-area events",
+      "key": "restricted_area_events",
+      "mean": 0.95,
+      "std": 0.8645808232895291
+    },
+    {
+      "metric": "Restricted-area time [s]",
+      "key": "time_in_restricted_area",
+      "mean": 117.3,
+      "std": 113.89165904490109
+    },
+    {
+      "metric": "Sector-exit events",
+      "key": "sector_exit_events",
+      "mean": 0.0,
+      "std": 0.0
+    },
+    {
+      "metric": "Time outside sector [s]",
+      "key": "time_outside_sector",
+      "mean": 0.0,
+      "std": 0.0
+    }
+  ]
+}
