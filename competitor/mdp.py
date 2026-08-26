@@ -30,6 +30,7 @@ from competitor.config import (
     CONFLICT_WEIGHT,
     D_HEADING,
     D_SPEED,
+    ACTION_FREQUENCY,
     DCPA_LIMIT_NM,
     DRIFT_PENALTY,
     INTRUSION_NM,
