@@ -13,6 +13,7 @@ Run it as a module from the repo root:
     python -m scripts.evaluate_competition --env ma                 # stretch track
     python -m scripts.evaluate_competition --env sa --episodes 20   # quick check
     python -m scripts.evaluate_competition --env sa --model my_ppo   # your policy
+    python -m scripts.evaluate_competition --env sa --mdp-v1         # competitor MDP v1
 
 The two functions in the EDIT block below are the only things a competitor
 changes: point `make_env` at your env subclass / wrapper stack, and load your
@@ -42,14 +43,25 @@ METRIC_KEYS = [
 
 
 # ==================== EDIT THESE TWO FOR YOUR SUBMISSION ======================
-def make_env(kind, n_agents=N_AGENTS_MA):
+def make_env(kind, n_agents=N_AGENTS_MA, mdp_v1=False):
     """Return the environment to evaluate.
 
     Default = the base competition env. Swap in your own subclass or wrapper
     stack here, e.g. ``return MyObsWrapper(gym.make("CompetitionEnv-v0"))``.
     Do NOT change the fixed scoring params (intrusion_distance, episode_time_limit,
     distance_margin, n_intruders/n_agents, n_obstacles, ...).
+
+    ``mdp_v1=True`` (or ``--mdp-v1``) uses the competitor MDP v1 subclass.
+    The scored metrics are unchanged; only observation / reward / action
+    mapping differ. Neutral ``[0, 0]`` trajectories match the base env.
     """
+    if mdp_v1:
+        from gymnasium.wrappers import FlattenObservation
+        from competitor.envs import CompetitionEnvV1, CompetitionZooEnvV1
+        if kind == "sa":
+            # Training uses FlattenObservation + MlpPolicy; eval must match.
+            return FlattenObservation(CompetitionEnvV1(render_mode=None))
+        return CompetitionZooEnvV1(n_agents=n_agents)
     if kind == "sa":
         import gymnasium as gym
         import bluesky_gym
@@ -62,22 +74,30 @@ def make_env(kind, n_agents=N_AGENTS_MA):
 def load_policy(kind, model_path=None):
     """Return an ``act(obs) -> action`` callable.
 
-    Default is the neutral 'fly straight to the goal' policy. Load your trained
-    model here, e.g.::
-
-        from stable_baselines3 import PPO
-        model = PPO.load(model_path)
-        return lambda obs: model.predict(obs, deterministic=True)[0]
+    Default is the neutral 'fly straight to the goal' policy. Load a trained
+    SB3 SAC/PPO zip with ``--model path/to/selected`` (the ``.zip`` suffix is
+    optional). The env must match training: for MDP v1 single-agent that means
+    ``--mdp-v1`` so observations are flattened.
     """
-    if model_path is not None:
-        raise NotImplementedError("load your trained policy in load_policy()")
-    return lambda obs: np.zeros(2, dtype=np.float32)
+    if model_path is None:
+        return lambda obs: np.zeros(2, dtype=np.float32)
+    from stable_baselines3 import PPO, SAC
+    try:
+        model = SAC.load(model_path)
+    except Exception:
+        model = PPO.load(model_path)
+
+    def act(obs):
+        action, _ = model.predict(obs, deterministic=True)
+        return np.asarray(action, dtype=np.float32).reshape(-1)
+
+    return act
 # =============================================================================
 
 
-def run_single_agent(n_episodes, act):
+def run_single_agent(n_episodes, act, mdp_v1=False):
     """One record (final info dict) per episode."""
-    env = make_env("sa")
+    env = make_env("sa", mdp_v1=mdp_v1)
     records = []
     for ep in range(n_episodes):
         obs, info = env.reset(seed=SEED if ep == 0 else None)
@@ -89,9 +109,9 @@ def run_single_agent(n_episodes, act):
     return records
 
 
-def run_multi_agent(n_episodes, act, n_agents):
+def run_multi_agent(n_episodes, act, n_agents, mdp_v1=False):
     """One record per agent-episode (each agent's final info as it leaves)."""
-    env = make_env("ma", n_agents=n_agents)
+    env = make_env("ma", n_agents=n_agents, mdp_v1=mdp_v1)
     records = []
     for ep in range(n_episodes):
         observations, infos = env.reset(seed=SEED if ep == 0 else None)
@@ -145,16 +165,17 @@ def write_csv(records, out_path):
     print(f"\nwrote per-episode metrics to {out_path}")
 
 
-def evaluate(kind, n_episodes, n_agents, model_path, out_path):
+def evaluate(kind, n_episodes, n_agents, model_path, out_path, mdp_v1=False):
     act = load_policy(kind, model_path)
     if kind == "sa":
-        records = run_single_agent(n_episodes, act)
+        records = run_single_agent(n_episodes, act, mdp_v1=mdp_v1)
         label = "Single-agent"
     else:
-        records = run_multi_agent(n_episodes, act, n_agents)
+        records = run_multi_agent(n_episodes, act, n_agents, mdp_v1=mdp_v1)
         label = "Multi-agent"
     summarize(records, label)
     write_csv(records, out_path or f"competition_eval_{kind}.csv")
+    return records
 
 
 def main():
@@ -168,6 +189,8 @@ def main():
                         help=f"agents for the multi-agent env (fixed: {N_AGENTS_MA})")
     parser.add_argument("--model", default=None, help="trained model path (see load_policy)")
     parser.add_argument("--out", default=None, help="per-episode CSV output path")
+    parser.add_argument("--mdp-v1", action="store_true",
+                        help="evaluate competitor MDP v1 (CompetitionEnvV1 / CompetitionZooEnvV1)")
     args = parser.parse_args()
 
     if args.episodes != N_EPISODES:
@@ -177,7 +200,7 @@ def main():
     kinds = ["sa", "ma"] if args.env == "both" else [args.env]
     for kind in kinds:
         evaluate(kind, args.episodes, args.n_agents, args.model,
-                 args.out if args.env != "both" else None)
+                 args.out if args.env != "both" else None, mdp_v1=args.mdp_v1)
 
 
 if __name__ == "__main__":

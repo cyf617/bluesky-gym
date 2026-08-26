@@ -6,4 +6,9 @@ images/
 logs/
 models/
 dist/
+.venv/
+competitor/results/*_sa_v1/latest.zip
+competitor/results/*_sa_v1/final.zip
+
+
 
