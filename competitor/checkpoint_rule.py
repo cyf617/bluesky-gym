@@ -12,6 +12,10 @@ def is_better_arrival(candidate, current):
     if candidate["waypoint_reached"] > current["waypoint_reached"] + 1e-9:
         return True
     if abs(candidate["waypoint_reached"] - current["waypoint_reached"]) <= 1e-9:
+        # Do not shuffle 0%-arrival policies by intrusion time; that rewards
+        # "flee the sector" local minima.
+        if candidate["waypoint_reached"] <= 0.0:
+            return False
         return candidate["intrusion_time"] < current["intrusion_time"]
     return False
 

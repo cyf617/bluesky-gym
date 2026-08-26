@@ -30,17 +30,17 @@ SECTOR_DISTANCE_NORM_KM = 170.0
 POLYGON_DISTANCE_NORM_KM = 20.0
 
 # --- reward ---
-PROGRESS_PER_KM = 0.01
+PROGRESS_PER_KM = 0.15    # 100 km closer ≈ +15; 0.01 was drowned by conflict terms
 REACH_REWARD = 80.0
-TIMEOUT_PENALTY = -20.0
+TIMEOUT_PENALTY = -80.0   # same order as reach, so wandering for 3000 s is not cheap
 DRIFT_PENALTY = -0.01     # only applied when no threat
 TCPA_HORIZON_S = 120.0
 DCPA_LIMIT_NM = 5.0
-CONFLICT_WEIGHT = 0.2
+CONFLICT_WEIGHT = 0.05    # per-step; keep below typical progress so the agent still goes to the goal
 PROXIMITY_HORIZON_KM = 5.0
-PROXIMITY_WEIGHT = 0.1
+PROXIMITY_WEIGHT = 0.05
 RESTRICTED_EVENT_PENALTY = 1.0
-SECTOR_EXIT_EVENT_PENALTY = 1.0
+SECTOR_EXIT_EVENT_PENALTY = 2.0
 
 # --- world (must match official scoring; do not change for evaluation) ---
 INTRUSION_NM = 5.0

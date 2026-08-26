@@ -23,6 +23,9 @@ class SelectionTests(unittest.TestCase):
         self.assertTrue(is_better_arrival(_m(1.0, 50.0), _m(1.0, 80.0)))
         self.assertFalse(is_better_arrival(_m(1.0, 80.0), _m(1.0, 50.0)))
 
+    def test_zero_arrival_does_not_win_on_lower_intrusion(self):
+        self.assertFalse(is_better_arrival(_m(0.0, 10.0), _m(0.0, 80.0)))
+
     def test_safety_rejects_collapsed_arrival(self):
         self.assertFalse(is_better_safety(_m(0.5, 1.0), None, min_arrival=0.90))
         self.assertTrue(is_better_safety(_m(0.95, 40.0), None, min_arrival=0.90))
