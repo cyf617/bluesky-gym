@@ -6,4 +6,6 @@ images/
 logs/
 models/
 dist/
+.venv/
+
 
