@@ -123,6 +123,9 @@ def main():
     parser.add_argument("--save-dir", default=None)
     parser.add_argument("--run-name", default=None,
                         help="directory name under competitor/results (default <algo>_sa_v1)")
+    parser.add_argument("--replay-episodes", type=int, default=5,
+                        help="after training, record selected.zip on the first N seed-42 "
+                             "episodes for the dashboard replay tab (0 = skip)")
 
     mdp = parser.add_argument_group("MDP (competitor/config.py overrides)")
     mdp.add_argument("--action-mode", choices=ACTION_MODES, default=None,
@@ -214,6 +217,15 @@ def main():
     model.save(os.path.join(save_dir, "final"))
     print(f"training finished. selected checkpoint in {save_dir}/selected.zip")
     print(f"selection summary: {os.path.join(save_dir, 'selection.json')}")
+
+    selected = os.path.join(save_dir, "selected")
+    if args.replay_episodes > 0 and os.path.exists(selected + ".zip"):
+        from competitor.replay import load_policy, record_replays
+        index = record_replays(
+            os.path.join(save_dir, "replays"), load_policy(selected, args.algo),
+            env_kwargs=env_kwargs, seed=42, n_episodes=args.replay_episodes,
+            label="selected", meta={"model": "selected"})
+        print(f"recorded {len(index)} replay episodes → {save_dir}/replays")
 
 
 if __name__ == "__main__":

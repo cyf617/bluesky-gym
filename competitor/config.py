@@ -54,6 +54,11 @@ PROXIMITY_HORIZON_KM = 5.0
 PROXIMITY_WEIGHT = 0.05
 RESTRICTED_EVENT_PENALTY = 1.0
 SECTOR_EXIT_EVENT_PENALTY = 2.0
+# Per simulated second spent in loss of separation / inside a restricted area,
+# i.e. the official intrusion_time and time_in_restricted_area metrics scaled.
+# Off by default so earlier runs stay reproducible.
+INTRUSION_TIME_WEIGHT = 0.0
+RESTRICTED_TIME_WEIGHT = 0.0
 
 # --- world (must match official scoring; do not change for evaluation) ---
 INTRUSION_NM = 5.0
@@ -66,6 +71,7 @@ TUNABLE_KEYS = (
     "TCPA_HORIZON_S", "DCPA_LIMIT_NM", "CONFLICT_WEIGHT",
     "PROXIMITY_HORIZON_KM", "PROXIMITY_WEIGHT",
     "RESTRICTED_EVENT_PENALTY", "SECTOR_EXIT_EVENT_PENALTY",
+    "INTRUSION_TIME_WEIGHT", "RESTRICTED_TIME_WEIGHT",
 )
 ACTION_MODES = ("relative", "goal_relative")
 

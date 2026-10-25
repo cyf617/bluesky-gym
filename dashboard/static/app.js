@@ -14,9 +14,10 @@
   const TERMS = {
     progress: "进度", reach: "到达", timeout: "超时", conflict_now: "当前冲突",
     conflict_predicted: "预测冲突", obstacle_proximity: "接近障碍", sector_proximity: "接近边界",
-    restricted_event: "进入限制区", sector_exit_event: "飞出扇区", drift: "偏航",
+    restricted_event: "进入限制区", sector_exit_event: "飞出扇区",
+    intrusion_time: "冲突秒数", restricted_time: "限制区秒数", drift: "偏航",
   };
-  const SAFETY_TERMS = ["conflict_now", "conflict_predicted", "obstacle_proximity", "sector_proximity", "restricted_event", "sector_exit_event"];
+  const SAFETY_TERMS = ["conflict_now", "conflict_predicted", "obstacle_proximity", "sector_proximity", "restricted_event", "sector_exit_event", "intrusion_time", "restricted_time"];
   const TUNABLE_HELP = {
     ACTION_MODE: "动作模式：relative = 在当前航向/速度上增减；goal_relative = 相对目标方位的偏角 + 绝对速度（0 动作 = 直飞目标）",
     D_HEADING: "relative 模式：|动作|=1 时的航向变化（度）",
@@ -35,6 +36,8 @@
     PROXIMITY_WEIGHT: "障碍物/扇区边界接近惩罚权重（每步）",
     RESTRICTED_EVENT_PENALTY: "每次进入限制区的惩罚",
     SECTOR_EXIT_EVENT_PENALTY: "每次飞出扇区的惩罚",
+    INTRUSION_TIME_WEIGHT: "每秒处于冲突（< 5 NM，每架邻机）的惩罚，对应官方 intrusion_time",
+    RESTRICTED_TIME_WEIGHT: "每秒处于限制区内的惩罚，对应官方 time_in_restricted_area",
   };
 
   const saved = JSON.parse(localStorage.getItem("bsdash") || "{}");

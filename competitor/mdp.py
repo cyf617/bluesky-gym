@@ -44,8 +44,8 @@ from competitor.observations import (
 
 REWARD_TERMS = (
     "progress", "conflict_now", "conflict_predicted", "obstacle_proximity",
-    "sector_proximity", "restricted_event", "sector_exit_event", "drift",
-    "reach", "timeout",
+    "sector_proximity", "restricted_event", "sector_exit_event",
+    "intrusion_time", "restricted_time", "drift", "reach", "timeout",
 )
 
 
@@ -213,6 +213,11 @@ class CompetitionMdpV1:
         terms["sector_exit_event"] = -cfg["SECTOR_EXIT_EVENT_PENALTY"] * d_sector
         if d_restricted > 0 or d_sector > 0:
             threat = True
+
+        d_intrusion_s = m["intrusion_time"] - base["intrusion_time"]
+        d_restricted_s = m["time_in_restricted_area"] - base["time_in_restricted_area"]
+        terms["intrusion_time"] = -cfg["INTRUSION_TIME_WEIGHT"] * d_intrusion_s
+        terms["restricted_time"] = -cfg["RESTRICTED_TIME_WEIGHT"] * d_restricted_s
 
         if not threat:
             qdr, _ = kwikqdrdist(lat, lon, goal_lat, goal_lon)
