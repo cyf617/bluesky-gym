@@ -84,7 +84,10 @@ def load_policy(kind, model_path=None):
     """
     if model_path is None:
         return lambda obs: np.zeros(2, dtype=np.float32)
+    import torch
     from stable_baselines3 import PPO, SAC
+    # Batch-1 inference: extra threads only contend (3 parallel evals at 4 threads ran ~20x slower).
+    torch.set_num_threads(1)
     try:
         model = SAC.load(model_path)
     except Exception:

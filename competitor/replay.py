@@ -90,7 +90,9 @@ def run_episode(env, act, seed=None):
 
 
 def load_policy(model_path, algo=None):
+    import torch
     from stable_baselines3 import PPO, SAC
+    torch.set_num_threads(1)
     classes = {"sac": SAC, "ppo": PPO}
     order = [classes[algo]] if algo in classes else [SAC, PPO]
     for cls in order:

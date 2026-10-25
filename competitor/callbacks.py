@@ -32,6 +32,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+import shutil
 
 import numpy as np
 from stable_baselines3.common.callbacks import BaseCallback
@@ -129,7 +130,7 @@ class OfficialMetricCheckpointCallback(BaseCallback):
         selected_name = "best_safety" if self.best_safety is not None else "best_arrival"
         selected_src = os.path.join(self.save_dir, selected_name)
         if os.path.exists(selected_src + ".zip"):
-            self.model.save(os.path.join(self.save_dir, "selected"))
+            shutil.copyfile(selected_src + ".zip", os.path.join(self.save_dir, "selected.zip"))
 
         self._write_selection()
 
