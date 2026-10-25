@@ -244,7 +244,7 @@
     function fmtN(v, d = 0) { return v === undefined || v === null ? "—" : Number(v).toFixed(d); }
 
     function drawTimeline() {
-      const ctx = timeline.getContext("2d");
+      const ctx = timeline.getContext("2d", { willReadFrequently: true });
       const w = timeline.clientWidth, rows = ghost ? [["模型", frames], ["中性", ghost]] : [["模型", frames]];
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, timeline.height);
@@ -269,7 +269,7 @@
     }
     function drawTimelineCursor() {
       if (!timeline._base) return;
-      const ctx = timeline.getContext("2d");
+      const ctx = timeline.getContext("2d", { willReadFrequently: true });
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.putImageData(timeline._base, 0, 0);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
