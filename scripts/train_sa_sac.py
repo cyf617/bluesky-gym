@@ -21,6 +21,7 @@ dashboard (``python -m dashboard``) reads all of them.
 from __future__ import annotations
 
 import argparse
+import multiprocessing as mp
 import os
 import subprocess
 import sys
@@ -49,7 +50,9 @@ def build_vec_env(n_envs, seed, env_kwargs, norm_reward, gamma):
         seed=seed,
         env_kwargs=env_kwargs,
         vec_env_cls=SubprocVecEnv,
-        vec_env_kwargs=dict(start_method="forkserver"),
+        # forkserver is unavailable on Windows; spawn works everywhere.
+        vec_env_kwargs=dict(start_method="forkserver" if "forkserver" in mp.get_all_start_methods()
+                            else "spawn"),
         monitor_dir=None,
     )
     if norm_reward:
@@ -75,7 +78,7 @@ def build_model(args, venv):
             policy_kwargs=policy_kwargs,
             verbose=1,
             seed=args.seed,
-            device="auto",
+            device=args.device,
         )
     policy_kwargs["log_std_init"] = args.log_std_init
     return PPO(
@@ -93,7 +96,7 @@ def build_model(args, venv):
         policy_kwargs=policy_kwargs,
         verbose=1,
         seed=args.seed,
-        device="auto",
+        device=args.device,
     )
 
 
@@ -138,6 +141,8 @@ def main():
     mdp = parser.add_argument_group("MDP (competitor/config.py overrides)")
     mdp.add_argument("--action-mode", choices=ACTION_MODES, default=None,
                      help="shortcut for --set ACTION_MODE=...")
+    mdp.add_argument("--mdp-from", default=None, metavar="RUN_DIR",
+                     help="start from that run's config.json mdp_overrides (then apply --set)")
     mdp.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
                      help="override a TUNABLE_KEYS constant, e.g. --set CONFLICT_WEIGHT=0.1")
 
@@ -153,11 +158,21 @@ def main():
     hp.add_argument("--target-kl", type=float, default=0.03, help="PPO early-stop KL")
     hp.add_argument("--log-std-init", type=float, default=-0.5,
                     help="PPO initial log std (-0.5 ≈ std 0.6)")
+    hp.add_argument("--device", default="cpu",
+                    help="torch device; small MLP policies train faster on cpu than cuda")
+    hp.add_argument("--init-from", default=None,
+                    help="start from this checkpoint's weights (same algo, obs and net-arch); "
+                         "timesteps and VecNormalize stats start fresh")
     hp.add_argument("--norm-reward", action=argparse.BooleanOptionalAction, default=None,
                     help="VecNormalize the reward (default: on for PPO, off for SAC)")
     args = parser.parse_args()
 
-    overrides = parse_overrides(args.set)
+    overrides = {}
+    if args.mdp_from:
+        import json
+        with open(os.path.join(args.mdp_from, "config.json")) as f:
+            overrides.update(json.load(f).get("mdp_overrides") or {})
+    overrides.update(parse_overrides(args.set))
     if args.action_mode:
         overrides["ACTION_MODE"] = args.action_mode
     mdp_cfg = resolve_mdp_config(overrides)
@@ -178,6 +193,7 @@ def main():
                            target_kl=args.target_kl, log_std_init=args.log_std_init,
                            gae_lambda=0.95, clip_range=0.2)
     hyperparams["norm_reward"] = norm_reward
+    hyperparams["init_from"] = args.init_from
     write_json_atomic(os.path.join(save_dir, "config.json"), {
         "run_name": os.path.basename(os.path.normpath(save_dir)),
         "algo": args.algo,
@@ -210,6 +226,9 @@ def main():
     torch.set_num_threads(1)
     venv = build_vec_env(args.n_envs, args.seed, env_kwargs, norm_reward, args.gamma)
     model = build_model(args, venv)
+    if args.init_from:
+        model.set_parameters(args.init_from, exact_match=True, device=args.device)
+        print(f"initialised weights from {args.init_from}")
     model.set_logger(configure(save_dir, ["stdout", "csv"]))
     stop_rule = ArrivalStopRule(args.stop_after, args.stop_min_arrival, args.stop_patience)
     eval_cb = OfficialMetricCheckpointCallback(

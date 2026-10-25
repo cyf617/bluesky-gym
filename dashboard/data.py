@@ -136,7 +136,7 @@ def run_status(run_dir, now=None):
     now = time.time() if now is None else now
     status = read_json(os.path.join(run_dir, "status.json"))
     if status:
-        if status.get("state") in ("finished", "early_stopped"):
+        if status.get("state") in ("finished", "early_stopped", "stopped"):
             return status["state"], status
         stale_after = 6 * status["heartbeat_s"] if "heartbeat_s" in status else LEGACY_STALE_S
         if now - status.get("updated_at", 0) > stale_after:

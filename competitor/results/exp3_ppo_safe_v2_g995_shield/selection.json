@@ -1,0 +1,58 @@
+{
+  "min_arrival": 0.9,
+  "eval_seed": 123,
+  "eval_episodes": 100,
+  "note": "selected uses official metrics only; sb3_ep_rew_mean is not used",
+  "neutral_baseline": {
+    "waypoint_reached": 1.0,
+    "flight_time": 848.62,
+    "intrusion_events": 1.14,
+    "intrusion_time": 100.59,
+    "restricted_area_events": 0.88,
+    "time_in_restricted_area": 115.97,
+    "sector_exit_events": 0.0,
+    "time_outside_sector": 0.0
+  },
+  "best_arrival_step": 300004,
+  "best_arrival": {
+    "waypoint_reached": 0.99,
+    "flight_time": 1266.22,
+    "intrusion_events": 0.49,
+    "intrusion_time": 25.88,
+    "restricted_area_events": 0.33,
+    "time_in_restricted_area": 34.31,
+    "sector_exit_events": 0.03,
+    "time_outside_sector": 3.41,
+    "total_reward": 65.33299096682909,
+    "shield_interventions": 111.5
+  },
+  "best_safety_step": 4,
+  "best_safety": {
+    "waypoint_reached": 0.93,
+    "flight_time": 1192.66,
+    "intrusion_events": 0.36,
+    "intrusion_time": 18.22,
+    "restricted_area_events": 1.03,
+    "time_in_restricted_area": 136.52,
+    "sector_exit_events": 0.01,
+    "time_outside_sector": 1.03,
+    "total_reward": 23.158753915204752,
+    "shield_interventions": 145.71
+  },
+  "best_safety_total_step": 300004,
+  "best_safety_total": {
+    "waypoint_reached": 0.99,
+    "flight_time": 1266.22,
+    "intrusion_events": 0.49,
+    "intrusion_time": 25.88,
+    "restricted_area_events": 0.33,
+    "time_in_restricted_area": 34.31,
+    "sector_exit_events": 0.03,
+    "time_outside_sector": 3.41,
+    "total_reward": 65.33299096682909,
+    "shield_interventions": 111.5
+  },
+  "selected": "best_safety",
+  "snapshots": {},
+  "stopped_early": null
+}

@@ -117,8 +117,14 @@ def record_replays(out_dir, act, env_kwargs=None, seed=42, n_episodes=5,
     neutral = lambda obs: np.zeros(2)  # noqa: E731
 
     model_eps = [run_episode(env, act, seed if i == 0 else None) for i in range(n_episodes)]
-    neutral_eps = ([run_episode(env, neutral, seed if i == 0 else None) for i in range(n_episodes)]
-                   if with_neutral else [None] * n_episodes)
+    neutral_eps = [None] * n_episodes
+    if with_neutral:
+        # The ghost is the plain neutral policy: same action mapping, never shielded.
+        ghost_kwargs = dict(env_kwargs or {})
+        ghost_kwargs["mdp_overrides"] = {**ghost_kwargs.get("mdp_overrides", {}), "SHIELD": 0}
+        ghost_env = make_flattened_sa_env(**ghost_kwargs)
+        neutral_eps = [run_episode(ghost_env, neutral, seed if i == 0 else None)
+                       for i in range(n_episodes)]
 
     index = []
     for i, ((static, frames, metrics), ghost) in enumerate(zip(model_eps, neutral_eps)):
