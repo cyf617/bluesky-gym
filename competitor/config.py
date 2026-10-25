@@ -3,6 +3,10 @@
 Keep this file the single place to tweak scales and reward weights. The
 observation / action / reward implementations import from here so a later
 coefficient sweep does not require hunting through env code.
+
+Names listed in ``TUNABLE_KEYS`` can be overridden per run without editing
+this file (``CompetitionEnvV1(mdp_overrides={...})`` or
+``train_sa_sac.py --set KEY=VALUE``); ``resolve_mdp_config`` merges them.
 """
 
 # --- action ---
@@ -12,6 +16,15 @@ coefficient sweep does not require hunting through env code.
 D_HEADING = 15.0          # deg at |action| = 1
 D_SPEED = 25.0            # kt at |action| = 1
 ACTION_FREQUENCY = 5      # simulated seconds per env step
+# "relative": heading/speed change on top of the current state (action 0 = hold).
+#   Exploration noise integrates into a random walk, so an untrained policy
+#   wanders off and 0 % arrival is the starting point.
+# "goal_relative": heading = bearing to goal + a0 * GOAL_MAX_OFFSET_DEG and
+#   speed = AIRSPEED_MEAN + a1 * SPEED_RANGE_KT. Action 0 = the neutral
+#   fly-to-goal policy, so exploration starts from 100 % arrival.
+ACTION_MODE = "relative"
+GOAL_MAX_OFFSET_DEG = 90.0
+SPEED_RANGE_KT = 40.0
 
 # --- observation scales ---
 WAYPOINT_DISTANCE_NORM_KM = 170.0
@@ -41,7 +54,68 @@ PROXIMITY_HORIZON_KM = 5.0
 PROXIMITY_WEIGHT = 0.05
 RESTRICTED_EVENT_PENALTY = 1.0
 SECTOR_EXIT_EVENT_PENALTY = 2.0
+# Per simulated second spent in loss of separation / inside a restricted area,
+# i.e. the official intrusion_time and time_in_restricted_area metrics scaled.
+# Off by default so earlier runs stay reproducible.
+INTRUSION_TIME_WEIGHT = 0.0
+RESTRICTED_TIME_WEIGHT = 0.0
+SECTOR_TIME_WEIGHT = 0.0          # per simulated second outside the sector
+INTRUSION_EVENT_PENALTY = 0.0     # per new loss of separation (official intrusion_events)
+
+# --- action shield (goal_relative only) ---
+# SHIELD=1 replaces the policy heading with the nearest heading (5 deg steps,
+# up to +-90 deg) whose straight-line extrapolation stays clear of restricted
+# areas, the sector edge and constant-velocity intruders for the lookahead.
+SHIELD = 0
+SHIELD_LOOKAHEAD_S = 120.0
+SHIELD_OBSTACLE_BUFFER_KM = 2.0
+SHIELD_SECTOR_BUFFER_KM = 2.0
+SHIELD_INTRUDER_NM = 6.0
+# 0 = straight-line candidates (instant heading change). > 0 = simulate the turn
+# at this bank angle first (BlueSky's default A320 bank is 25 deg, ~1.7 deg/s).
+SHIELD_BANK_DEG = 0.0
 
 # --- world (must match official scoring; do not change for evaluation) ---
 INTRUSION_NM = 5.0
 NM2KM = 1.852
+
+TUNABLE_KEYS = (
+    "D_HEADING", "D_SPEED", "ACTION_FREQUENCY",
+    "ACTION_MODE", "GOAL_MAX_OFFSET_DEG", "SPEED_RANGE_KT",
+    "PROGRESS_PER_KM", "REACH_REWARD", "TIMEOUT_PENALTY", "DRIFT_PENALTY",
+    "TCPA_HORIZON_S", "DCPA_LIMIT_NM", "CONFLICT_WEIGHT",
+    "PROXIMITY_HORIZON_KM", "PROXIMITY_WEIGHT",
+    "RESTRICTED_EVENT_PENALTY", "SECTOR_EXIT_EVENT_PENALTY",
+    "INTRUSION_TIME_WEIGHT", "RESTRICTED_TIME_WEIGHT",
+    "SECTOR_TIME_WEIGHT", "INTRUSION_EVENT_PENALTY",
+    "SHIELD", "SHIELD_LOOKAHEAD_S", "SHIELD_OBSTACLE_BUFFER_KM",
+    "SHIELD_SECTOR_BUFFER_KM", "SHIELD_INTRUDER_NM", "SHIELD_BANK_DEG",
+)
+ACTION_MODES = ("relative", "goal_relative")
+
+
+def resolve_mdp_config(overrides=None):
+    """Module defaults for ``TUNABLE_KEYS`` updated with ``overrides``.
+
+    Values are coerced to the type of the default so ``--set KEY=1`` works for
+    float keys. Unknown keys raise instead of being silently ignored.
+    """
+    cfg = {k: globals()[k] for k in TUNABLE_KEYS}
+    for key, value in (overrides or {}).items():
+        if key not in cfg:
+            raise KeyError(f"unknown MDP config key {key!r}; tunable: {', '.join(TUNABLE_KEYS)}")
+        cfg[key] = type(cfg[key])(value)
+    if cfg["ACTION_MODE"] not in ACTION_MODES:
+        raise ValueError(f"ACTION_MODE must be one of {ACTION_MODES}, got {cfg['ACTION_MODE']!r}")
+    return cfg
+
+
+def parse_overrides(pairs):
+    """``["KEY=VALUE", ...]`` -> dict (values stay strings until resolve)."""
+    out = {}
+    for pair in pairs or ():
+        if "=" not in pair:
+            raise ValueError(f"expected KEY=VALUE, got {pair!r}")
+        key, value = pair.split("=", 1)
+        out[key.strip()] = value.strip()
+    return out

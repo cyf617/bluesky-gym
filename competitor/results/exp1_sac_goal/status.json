@@ -1,0 +1,10 @@
+{
+  "state": "finished",
+  "timesteps": 100000,
+  "total_timesteps": 100000,
+  "episodes": 395,
+  "fps": 102.9,
+  "started_at": 1792932513.9867349,
+  "updated_at": 1792933486.2211587,
+  "heartbeat_s": 10.0
+}

@@ -46,3 +46,29 @@ class SelectionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _mt(arrival, intrusion, restricted, outside):
+    return {"waypoint_reached": arrival, "intrusion_time": intrusion,
+            "time_in_restricted_area": restricted, "time_outside_sector": outside}
+
+
+def test_safety_total_uses_all_three_violation_times():
+    from competitor.checkpoint_rule import is_better_safety_total
+    cur = _mt(1.0, 10.0, 100.0, 0.0)
+    assert is_better_safety_total(_mt(1.0, 50.0, 40.0, 0.0), cur, 0.9)       # 90 < 110
+    assert not is_better_safety_total(_mt(1.0, 5.0, 100.0, 20.0), cur, 0.9)  # 125 > 110
+    assert not is_better_safety_total(_mt(0.8, 0.0, 0.0, 0.0), cur, 0.9)     # arrival gate
+    assert is_better_safety_total(_mt(0.95, 0.0, 0.0, 0.0), None, 0.9)
+
+
+def test_arrival_stop_rule():
+    from competitor.checkpoint_rule import ArrivalStopRule
+    rule = ArrivalStopRule(after=500_000, min_arrival=0.95, patience=2)
+    assert rule.update(400_000, 0.5) is None          # before the window
+    assert rule.update(500_000, 0.5) is None          # "after" is exclusive
+    assert rule.update(600_000, 0.94) is None         # streak 1
+    assert rule.update(700_000, 0.96) is None         # reset
+    assert rule.update(800_000, 0.90) is None         # streak 1
+    assert "0.95" in rule.update(900_000, 0.93)        # streak 2 -> stop
+    assert ArrivalStopRule(after=None).update(10**7, 0.0) is None

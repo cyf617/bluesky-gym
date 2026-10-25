@@ -1,0 +1,16 @@
+{
+  "state": "stopped",
+  "timesteps": 996252,
+  "total_timesteps": 2000000,
+  "episodes": 3854,
+  "fps": 114.6,
+  "started_at": 1792956904.2599165,
+  "updated_at": 1792965613.059036,
+  "heartbeat_s": 10.0,
+  "reward_clip": {
+    "clipped": 0,
+    "total": 996252,
+    "bound": 10.0
+  },
+  "stop_reason": "manually stopped at the user's request after the 900k eval; latest.zip = 900k model"
+}

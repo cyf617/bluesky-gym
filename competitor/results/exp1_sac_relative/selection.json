@@ -1,0 +1,31 @@
+{
+  "min_arrival": 0.9,
+  "eval_seed": 123,
+  "eval_episodes": 20,
+  "note": "selected uses official metrics only; sb3_ep_rew_mean is not used",
+  "neutral_baseline": {
+    "waypoint_reached": 1.0,
+    "flight_time": 844.8,
+    "intrusion_events": 1.0,
+    "intrusion_time": 77.1,
+    "restricted_area_events": 0.95,
+    "time_in_restricted_area": 117.3,
+    "sector_exit_events": 0.0,
+    "time_outside_sector": 0.0
+  },
+  "best_arrival_step": 20004,
+  "best_arrival": {
+    "waypoint_reached": 0.2,
+    "flight_time": 2693.8,
+    "intrusion_events": 1.05,
+    "intrusion_time": 90.55,
+    "restricted_area_events": 3.3,
+    "time_in_restricted_area": 523.3,
+    "sector_exit_events": 0.8,
+    "time_outside_sector": 509.15,
+    "total_reward": -80.28144457358108
+  },
+  "best_safety_step": null,
+  "best_safety": null,
+  "selected": "best_arrival"
+}

@@ -1,0 +1,152 @@
+{
+  "neutral": {
+    "means": {
+      "waypoint_reached": 1.0,
+      "flight_time": 852.011,
+      "intrusion_events": 1.127,
+      "intrusion_time": 96.319,
+      "restricted_area_events": 0.813,
+      "time_in_restricted_area": 129.934,
+      "sector_exit_events": 0.0,
+      "time_outside_sector": 0.0
+    },
+    "clean_frac": 0.097
+  },
+  "runs": {
+    "neutral+S": {
+      "means": {
+        "waypoint_reached": 0.924,
+        "flight_time": 1175.656,
+        "intrusion_events": 0.374,
+        "intrusion_time": 23.056,
+        "restricted_area_events": 1.12,
+        "time_in_restricted_area": 119.627,
+        "sector_exit_events": 0.003,
+        "time_outside_sector": 0.321
+      },
+      "diff": {
+        "waypoint_reached": -0.076,
+        "flight_time": 323.645,
+        "intrusion_events": -0.753,
+        "intrusion_time": -73.263,
+        "restricted_area_events": 0.307,
+        "time_in_restricted_area": -10.307,
+        "sector_exit_events": 0.003,
+        "time_outside_sector": 0.321
+      },
+      "ci95": {
+        "waypoint_reached": 0.016432971762921064,
+        "flight_time": 35.0244568111895,
+        "intrusion_events": 0.06927540188917641,
+        "intrusion_time": 8.738428047395544,
+        "restricted_area_events": 0.158424319176402,
+        "time_in_restricted_area": 18.167479619825595,
+        "sector_exit_events": 0.0033914196625200086,
+        "time_outside_sector": 0.40740269838705423
+      },
+      "clean_frac": 0.496,
+      "shield_interventions": 136.347
+    },
+    "final": {
+      "means": {
+        "waypoint_reached": 1.0,
+        "flight_time": 811.21,
+        "intrusion_events": 1.227,
+        "intrusion_time": 98.24,
+        "restricted_area_events": 0.74,
+        "time_in_restricted_area": 109.132,
+        "sector_exit_events": 0.001,
+        "time_outside_sector": 0.394
+      },
+      "diff": {
+        "waypoint_reached": 0.0,
+        "flight_time": -40.801,
+        "intrusion_events": 0.1,
+        "intrusion_time": 1.921,
+        "restricted_area_events": -0.073,
+        "time_in_restricted_area": -20.802,
+        "sector_exit_events": 0.001,
+        "time_outside_sector": 0.394
+      },
+      "ci95": {
+        "waypoint_reached": 0.0,
+        "flight_time": 1.6536514636287665,
+        "intrusion_events": 0.060058536677376914,
+        "intrusion_time": 7.689329476695322,
+        "restricted_area_events": 0.027430679097604486,
+        "time_in_restricted_area": 4.520869500500336,
+        "sector_exit_events": 0.0019600000000000004,
+        "time_outside_sector": 0.7722399999999998
+      },
+      "clean_frac": 0.102
+    },
+    "final+S": {
+      "means": {
+        "waypoint_reached": 0.995,
+        "flight_time": 978.155,
+        "intrusion_events": 0.506,
+        "intrusion_time": 31.591,
+        "restricted_area_events": 0.498,
+        "time_in_restricted_area": 51.361,
+        "sector_exit_events": 0.005,
+        "time_outside_sector": 0.514
+      },
+      "diff": {
+        "waypoint_reached": -0.005,
+        "flight_time": 126.144,
+        "intrusion_events": -0.621,
+        "intrusion_time": -64.728,
+        "restricted_area_events": -0.315,
+        "time_in_restricted_area": -78.573,
+        "sector_exit_events": 0.005,
+        "time_outside_sector": 0.514
+      },
+      "ci95": {
+        "waypoint_reached": 0.004373910274695984,
+        "flight_time": 17.22265526621843,
+        "intrusion_events": 0.07182007280180978,
+        "intrusion_time": 8.27238090893838,
+        "restricted_area_events": 0.052317224046502436,
+        "time_in_restricted_area": 9.398509673101847,
+        "sector_exit_events": 0.004373910274695983,
+        "time_outside_sector": 0.5446085323421768
+      },
+      "clean_frac": 0.454,
+      "shield_interventions": 97.664
+    },
+    "final+S_bank25": {
+      "means": {
+        "waypoint_reached": 0.961,
+        "flight_time": 1138.697,
+        "intrusion_events": 0.255,
+        "intrusion_time": 15.193,
+        "restricted_area_events": 0.28,
+        "time_in_restricted_area": 17.722,
+        "sector_exit_events": 0.006,
+        "time_outside_sector": 0.567
+      },
+      "diff": {
+        "waypoint_reached": -0.039,
+        "flight_time": 286.686,
+        "intrusion_events": -0.872,
+        "intrusion_time": -81.126,
+        "restricted_area_events": -0.533,
+        "time_in_restricted_area": -112.212,
+        "sector_exit_events": 0.006,
+        "time_outside_sector": 0.567
+      },
+      "ci95": {
+        "waypoint_reached": 0.012005142641795218,
+        "flight_time": 31.958285609210737,
+        "intrusion_events": 0.06848333222319423,
+        "intrusion_time": 8.728413615531874,
+        "restricted_area_events": 0.05693301560488313,
+        "time_in_restricted_area": 9.62316826997647,
+        "sector_exit_events": 0.004788970310686489,
+        "time_outside_sector": 0.5813952744241414
+      },
+      "clean_frac": 0.679,
+      "shield_interventions": 116.809
+    }
+  }
+}

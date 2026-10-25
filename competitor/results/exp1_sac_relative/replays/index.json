@@ -1,0 +1,143 @@
+{
+  "seed": 42,
+  "policy": "selected",
+  "created_at": 1792935407.2817223,
+  "episodes": [
+    {
+      "file": "ep0.json",
+      "episode_index": 0,
+      "metrics": {
+        "waypoint_reached": 0.0,
+        "flight_time": 3000.0,
+        "intrusion_events": 2.0,
+        "intrusion_time": 152.0,
+        "restricted_area_events": 0.0,
+        "time_in_restricted_area": 0.0,
+        "sector_exit_events": 1.0,
+        "time_outside_sector": 2342.0,
+        "total_reward": -176.07588070194015
+      },
+      "neutral_metrics": {
+        "waypoint_reached": 1.0,
+        "flight_time": 890.0,
+        "intrusion_events": 0.0,
+        "intrusion_time": 0.0,
+        "restricted_area_events": 1.0,
+        "time_in_restricted_area": 101.0,
+        "sector_exit_events": 0.0,
+        "time_outside_sector": 0.0,
+        "total_reward": 97.19731516977367
+      },
+      "steps": 600
+    },
+    {
+      "file": "ep1.json",
+      "episode_index": 1,
+      "metrics": {
+        "waypoint_reached": 0.0,
+        "flight_time": 3000.0,
+        "intrusion_events": 0.0,
+        "intrusion_time": 0.0,
+        "restricted_area_events": 0.0,
+        "time_in_restricted_area": 0.0,
+        "sector_exit_events": 1.0,
+        "time_outside_sector": 2245.0,
+        "total_reward": -144.08880327811323
+      },
+      "neutral_metrics": {
+        "waypoint_reached": 1.0,
+        "flight_time": 1059.0,
+        "intrusion_events": 2.0,
+        "intrusion_time": 84.0,
+        "restricted_area_events": 0.0,
+        "time_in_restricted_area": 0.0,
+        "sector_exit_events": 0.0,
+        "time_outside_sector": 0.0,
+        "total_reward": 103.73340747043446
+      },
+      "steps": 600
+    },
+    {
+      "file": "ep2.json",
+      "episode_index": 2,
+      "metrics": {
+        "waypoint_reached": 0.0,
+        "flight_time": 3000.0,
+        "intrusion_events": 4.0,
+        "intrusion_time": 1046.0,
+        "restricted_area_events": 0.0,
+        "time_in_restricted_area": 0.0,
+        "sector_exit_events": 1.0,
+        "time_outside_sector": 803.0,
+        "total_reward": -111.43217775679847
+      },
+      "neutral_metrics": {
+        "waypoint_reached": 1.0,
+        "flight_time": 1059.0,
+        "intrusion_events": 3.0,
+        "intrusion_time": 166.0,
+        "restricted_area_events": 1.0,
+        "time_in_restricted_area": 149.0,
+        "sector_exit_events": 0.0,
+        "time_outside_sector": 0.0,
+        "total_reward": 98.34778352177351
+      },
+      "steps": 600
+    },
+    {
+      "file": "ep3.json",
+      "episode_index": 3,
+      "metrics": {
+        "waypoint_reached": 0.0,
+        "flight_time": 3000.0,
+        "intrusion_events": 3.0,
+        "intrusion_time": 187.0,
+        "restricted_area_events": 2.0,
+        "time_in_restricted_area": 426.0,
+        "sector_exit_events": 0.0,
+        "time_outside_sector": 0.0,
+        "total_reward": -108.78156148494845
+      },
+      "neutral_metrics": {
+        "waypoint_reached": 1.0,
+        "flight_time": 767.0,
+        "intrusion_events": 0.0,
+        "intrusion_time": 0.0,
+        "restricted_area_events": 1.0,
+        "time_in_restricted_area": 181.0,
+        "sector_exit_events": 0.0,
+        "time_outside_sector": 0.0,
+        "total_reward": 92.80075096073922
+      },
+      "steps": 600
+    },
+    {
+      "file": "ep4.json",
+      "episode_index": 4,
+      "metrics": {
+        "waypoint_reached": 0.0,
+        "flight_time": 3000.0,
+        "intrusion_events": 2.0,
+        "intrusion_time": 137.0,
+        "restricted_area_events": 0.0,
+        "time_in_restricted_area": 0.0,
+        "sector_exit_events": 3.0,
+        "time_outside_sector": 1932.0,
+        "total_reward": -154.58344886191648
+      },
+      "neutral_metrics": {
+        "waypoint_reached": 1.0,
+        "flight_time": 645.0,
+        "intrusion_events": 1.0,
+        "intrusion_time": 42.0,
+        "restricted_area_events": 1.0,
+        "time_in_restricted_area": 201.0,
+        "sector_exit_events": 0.0,
+        "time_outside_sector": 0.0,
+        "total_reward": 89.15280046659127
+      },
+      "steps": 600
+    }
+  ],
+  "model": "selected"
+}

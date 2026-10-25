@@ -2,25 +2,44 @@
 
 Import these from training / evaluation code. Do not change
 ``bluesky_gym.envs.competition_env.CompetitionEnv`` itself.
+
+``mdp_overrides`` replaces any of ``competitor.config.TUNABLE_KEYS`` for this
+instance only (reward weights, action scales, ``ACTION_MODE``).
 """
 
 from bluesky_gym.envs.competition_env import CompetitionEnv
 from bluesky_zoo.competition.competition import CompetitionZooEnv
 
+from competitor.config import resolve_mdp_config
 from competitor.mdp import CompetitionMdpV1, mdp_v1_init_kwargs
 
 
 class CompetitionEnvV1(CompetitionMdpV1, CompetitionEnv):
     """Single-agent competition env with observation/action/reward v1."""
 
-    def __init__(self, **kwargs):
-        super().__init__(**mdp_v1_init_kwargs(kwargs))
-        self._setup_mdp_v1(n_neighbors=self.n_intruders)
+    def __init__(self, mdp_overrides=None, **kwargs):
+        cfg = resolve_mdp_config(mdp_overrides)
+        super().__init__(**mdp_v1_init_kwargs(kwargs, cfg))
+        self._setup_mdp_v1(n_neighbors=self.n_intruders, mdp_cfg=cfg)
+
+    def step(self, action):
+        # Extra info key only; the scored metrics come from _get_info untouched.
+        obs, reward, terminated, truncated, info = super().step(action)
+        info = dict(info)
+        info["shield_interventions"] = self.shield_interventions.get(self.agent, 0)
+        return obs, reward, terminated, truncated, info
 
 
 class CompetitionZooEnvV1(CompetitionMdpV1, CompetitionZooEnv):
     """Multi-agent competition env with the same MDP v1 hooks as the SA env."""
 
-    def __init__(self, **kwargs):
-        super().__init__(**mdp_v1_init_kwargs(kwargs))
-        self._setup_mdp_v1(n_neighbors=self.n_agents - 1)
+    def __init__(self, mdp_overrides=None, **kwargs):
+        cfg = resolve_mdp_config(mdp_overrides)
+        super().__init__(**mdp_v1_init_kwargs(kwargs, cfg))
+        self._setup_mdp_v1(n_neighbors=self.n_agents - 1, mdp_cfg=cfg)
+
+    def step(self, actions):
+        observations, rewards, terminations, truncations, infos = super().step(actions)
+        infos = {a: {**info, "shield_interventions": self.shield_interventions.get(a, 0)}
+                 for a, info in infos.items()}
+        return observations, rewards, terminations, truncations, infos

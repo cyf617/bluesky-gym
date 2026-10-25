@@ -1,0 +1,85 @@
+{
+  "run_name": "exp3_ppo_safe_v2_g995_shield",
+  "algo": "ppo",
+  "timesteps": 2000000,
+  "mdp": {
+    "D_HEADING": 15.0,
+    "D_SPEED": 25.0,
+    "ACTION_FREQUENCY": 5,
+    "ACTION_MODE": "goal_relative",
+    "GOAL_MAX_OFFSET_DEG": 90.0,
+    "SPEED_RANGE_KT": 40.0,
+    "PROGRESS_PER_KM": 0.15,
+    "REACH_REWARD": 80.0,
+    "TIMEOUT_PENALTY": -80.0,
+    "DRIFT_PENALTY": -0.01,
+    "TCPA_HORIZON_S": 180.0,
+    "DCPA_LIMIT_NM": 7.0,
+    "CONFLICT_WEIGHT": 0.1,
+    "PROXIMITY_HORIZON_KM": 10.0,
+    "PROXIMITY_WEIGHT": 0.1,
+    "RESTRICTED_EVENT_PENALTY": 20.0,
+    "SECTOR_EXIT_EVENT_PENALTY": 25.0,
+    "INTRUSION_TIME_WEIGHT": 0.25,
+    "RESTRICTED_TIME_WEIGHT": 0.2,
+    "SECTOR_TIME_WEIGHT": 0.2,
+    "INTRUSION_EVENT_PENALTY": 12.0,
+    "SHIELD": 1,
+    "SHIELD_LOOKAHEAD_S": 120.0,
+    "SHIELD_OBSTACLE_BUFFER_KM": 2.0,
+    "SHIELD_SECTOR_BUFFER_KM": 2.0,
+    "SHIELD_INTRUDER_NM": 6.0,
+    "SHIELD_BANK_DEG": 0.0
+  },
+  "mdp_overrides": {
+    "SHIELD": "1",
+    "RESTRICTED_EVENT_PENALTY": "20",
+    "RESTRICTED_TIME_WEIGHT": "0.2",
+    "SECTOR_EXIT_EVENT_PENALTY": "25",
+    "SECTOR_TIME_WEIGHT": "0.2",
+    "INTRUSION_EVENT_PENALTY": "12",
+    "INTRUSION_TIME_WEIGHT": "0.25",
+    "CONFLICT_WEIGHT": "0.1",
+    "DCPA_LIMIT_NM": "7",
+    "TCPA_HORIZON_S": "180",
+    "PROXIMITY_HORIZON_KM": "10",
+    "PROXIMITY_WEIGHT": "0.1",
+    "ACTION_MODE": "goal_relative"
+  },
+  "hyperparams": {
+    "lr": 0.0003,
+    "gamma": 0.995,
+    "net_arch": [
+      256,
+      256
+    ],
+    "n_envs": 4,
+    "seed": 0,
+    "n_steps": 1024,
+    "batch_size": 256,
+    "n_epochs": 10,
+    "ent_coef": 0.0,
+    "target_kl": 0.03,
+    "log_std_init": -0.5,
+    "gae_lambda": 0.95,
+    "clip_range": 0.2,
+    "norm_reward": true
+  },
+  "eval": {
+    "freq": 100000,
+    "episodes": 100,
+    "seed": 123,
+    "min_arrival": 0.9
+  },
+  "stop_rule": {
+    "after": 500000,
+    "min_arrival": 0.95,
+    "patience": 2
+  },
+  "snapshot_steps": [
+    1000000
+  ],
+  "git_commit": "6e3a8e9",
+  "command": "python -m scripts.train_sa_sac --algo ppo --action-mode goal_relative --timesteps 2000000 --eval-freq 100000 --eval-episodes 100 --eval-seed 123 --seed 0 --n-envs 4 --stop-after 500000 --stop-min-arrival 0.95 --stop-patience 2 --snapshot-steps 1000000 --set SHIELD=1 --run-name exp3_ppo_safe_v2_g995_shield --set RESTRICTED_EVENT_PENALTY=20 --set RESTRICTED_TIME_WEIGHT=0.2 --set SECTOR_EXIT_EVENT_PENALTY=25 --set SECTOR_TIME_WEIGHT=0.2 --set INTRUSION_EVENT_PENALTY=12 --set INTRUSION_TIME_WEIGHT=0.25 --set CONFLICT_WEIGHT=0.1 --set DCPA_LIMIT_NM=7 --set TCPA_HORIZON_S=180 --set PROXIMITY_HORIZON_KM=10 --set PROXIMITY_WEIGHT=0.1 --gamma 0.995",
+  "created_at": 1792956930.3519685
+}
