@@ -5,8 +5,9 @@ Writes into the run directory:
 - ``episodes.csv``  one row per finished *training* episode: SB3 return and
   length, the official metrics from ``info``, and the per-term reward sums
   from ``competitor.vec_env.RewardTermsInfo``.
-- ``status.json``   heartbeat (state, timesteps, fps, wall time). A run whose
-  heartbeat is stale while ``state == "running"`` was killed.
+- ``status.json``   heartbeat (state, timesteps, fps, wall time), refreshed by
+  a daemon thread so it stays fresh during long evals. A run whose heartbeat
+  is stale while ``state == "running"`` was killed.
 
 It also records ``terms/<name>`` and ``train_metrics/<name>`` means into the
 SB3 logger so they land in ``progress.csv`` next to the losses.
@@ -17,6 +18,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+import threading
 import time
 
 from stable_baselines3.common.callbacks import BaseCallback
@@ -50,8 +52,10 @@ class TrainingTelemetryCallback(BaseCallback):
         self._file = None
         self._writer = None
         self._started = None
-        self._last_beat = 0.0
         self._n_episodes = 0
+        self._lock = threading.Lock()
+        self._stop = threading.Event()
+        self._thread = None
 
     def _on_training_start(self):
         os.makedirs(self.save_dir, exist_ok=True)
@@ -62,6 +66,12 @@ class TrainingTelemetryCallback(BaseCallback):
             self._writer.writeheader()
         self._started = time.time()
         self._write_status("running")
+        self._thread = threading.Thread(target=self._beat, daemon=True)
+        self._thread.start()
+
+    def _beat(self):
+        while not self._stop.wait(self.heartbeat_s):
+            self._write_status("running")
 
     def _on_step(self):
         for env_index, info in enumerate(self.locals.get("infos", ())):
@@ -86,28 +96,28 @@ class TrainingTelemetryCallback(BaseCallback):
                 if k != "total_reward" and k in info:
                     self.logger.record_mean(f"train_metrics/{k}", float(info[k]))
             self._file.flush()
-
-        now = time.time()
-        if now - self._last_beat >= self.heartbeat_s:
-            self._write_status("running")
         return True
 
     def _on_training_end(self):
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=5)
         self._write_status("finished")
         if self._file is not None:
             self._file.close()
             self._file = None
 
     def _write_status(self, state):
-        now = time.time()
-        self._last_beat = now
-        elapsed = max(now - self._started, 1e-9)
-        write_json_atomic(self.status_path, {
-            "state": state,
-            "timesteps": int(self.num_timesteps),
-            "total_timesteps": self.total_timesteps,
-            "episodes": self._n_episodes,
-            "fps": round(self.num_timesteps / elapsed, 1),
-            "started_at": self._started,
-            "updated_at": now,
-        })
+        with self._lock:
+            now = time.time()
+            elapsed = max(now - self._started, 1e-9)
+            write_json_atomic(self.status_path, {
+                "state": state,
+                "timesteps": int(self.num_timesteps),
+                "total_timesteps": self.total_timesteps,
+                "episodes": self._n_episodes,
+                "fps": round(self.num_timesteps / elapsed, 1),
+                "started_at": self._started,
+                "updated_at": now,
+                "heartbeat_s": self.heartbeat_s,
+            })

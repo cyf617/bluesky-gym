@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BlueSky 比赛训练看板</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✈</text></svg>">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">✈</span>
+      <div>
+        <h1>BlueSky 比赛训练看板</h1>
+        <p class="sub" id="results-dir">—</p>
+      </div>
+    </div>
+    <div class="controls">
+      <label class="toggle"><input type="checkbox" id="auto-refresh" checked> 自动刷新 (10 s)</label>
+      <button id="refresh-btn" class="btn">立即刷新</button>
+      <span class="muted" id="last-updated"></span>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-head">
+        <h2>训练运行</h2>
+        <span class="muted small">点击聚焦 · 勾选对比</span>
+      </div>
+      <div id="run-list" class="run-list"></div>
+      <div class="baseline-box" id="baseline-box"></div>
+    </aside>
+
+    <main class="main">
+      <nav class="tabs" id="tabs">
+        <button data-tab="overview" class="active">总览</button>
+        <button data-tab="metrics">官方指标</button>
+        <button data-tab="training">训练曲线</button>
+        <button data-tab="reward">奖励分解</button>
+        <button data-tab="episodes">回合明细</button>
+        <button data-tab="config">参数与调参</button>
+      </nav>
+
+      <section id="tab-overview" class="tab active"></section>
+      <section id="tab-metrics" class="tab">
+        <p class="hint">验证集评估（默认 seed 123，每次 N 个回合，确定性策略）。虚线 = 中性 [0,0] 基线；阴影 = 当前聚焦运行的 ±1 标准差。到达率越高越好，其余指标越低越好。</p>
+        <div class="grid charts" id="metrics-grid"></div>
+      </section>
+      <section id="tab-training" class="tab">
+        <div class="toolbar">
+          <label>平滑 (EMA) <input type="range" id="smooth" min="0" max="0.98" step="0.02" value="0.6"> <span id="smooth-val">0.60</span></label>
+        </div>
+        <p class="hint">SB3 训练日志（progress.csv；旧运行从 train.log 解析）。“训练回合到达率”来自带探索噪声的训练回合，不是确定性评估。</p>
+        <div class="grid charts" id="training-grid"></div>
+      </section>
+      <section id="tab-reward" class="tab">
+        <p class="hint">每个奖励分项在一个训练回合里的总和（各回合平均）。用来判断是哪一项主导了回报：例如安全惩罚相对“到达 + 进度”太小时，智能体会直接穿过冲突。</p>
+        <div id="reward-content"></div>
+      </section>
+      <section id="tab-episodes" class="tab">
+        <div id="episodes-content"></div>
+      </section>
+      <section id="tab-config" class="tab">
+        <div id="config-content"></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="tooltip" class="tooltip"></div>
+  <script src="/charts.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -7,10 +7,7 @@ logs/
 models/
 dist/
 .venv/
-competitor/results/*/latest.zip
-competitor/results/*/final.zip
-competitor/results/*/best_arrival.zip
-competitor/results/*/best_safety.zip
+competitor/results/*/*.zip
 
 
 
