@@ -2,7 +2,7 @@
 
 Why not training return
 -----------------------
-SB3's ``ep_rew_mean`` is the sum of *our* shaped reward (+0.01 km progress,
+SB3's ``ep_rew_mean`` is the sum of *our* shaped reward (progress per km,
 conflict penalties, +80 on arrival, …). That scalar is:
 
 - not what the competition scores
@@ -51,8 +51,9 @@ class OfficialMetricCheckpointCallback(BaseCallback):
     """Evaluate on official metrics every ``eval_freq`` timesteps and save."""
 
     def __init__(self, save_dir, eval_freq, eval_episodes, eval_seed,
-                 min_arrival=0.90, verbose=1):
+                 min_arrival=0.90, env_kwargs=None, verbose=1):
         super().__init__(verbose)
+        self.env_kwargs = dict(env_kwargs or {})
         self.save_dir = save_dir
         self.eval_freq = int(eval_freq)
         self.eval_episodes = int(eval_episodes)
@@ -64,21 +65,20 @@ class OfficialMetricCheckpointCallback(BaseCallback):
         self.best_safety = None
         self.history = []
         self.log_path = os.path.join(save_dir, "eval_log.csv")
+        self.log_fields = (["timesteps", "sb3_ep_rew_mean"] + METRIC_KEYS
+                           + [f"{k}_std" for k in METRIC_KEYS])
         self.selection_path = os.path.join(save_dir, "selection.json")
 
     def _init_callback(self):
         os.makedirs(self.save_dir, exist_ok=True)
         if not os.path.exists(self.log_path):
             with open(self.log_path, "w", newline="") as f:
-                writer = csv.DictWriter(
-                    f,
-                    fieldnames=["timesteps", "sb3_ep_rew_mean"] + METRIC_KEYS,
-                )
+                writer = csv.DictWriter(f, fieldnames=self.log_fields)
                 writer.writeheader()
 
     def _get_eval_env(self):
         if self._eval_env is None:
-            self._eval_env = make_flattened_sa_env()
+            self._eval_env = make_flattened_sa_env(**self.env_kwargs)
         return self._eval_env
 
     def _act(self, obs):
@@ -98,13 +98,16 @@ class OfficialMetricCheckpointCallback(BaseCallback):
             env, self._act, self.eval_episodes, self.eval_seed)
         means, stds = summarize_records(records)
         arrival, intrusion = arrival_and_safety(means)
-        sb3_return = self.logger.name_to_value.get("rollout/ep_rew_mean", float("nan"))
+        ep_buffer = getattr(self.model, "ep_info_buffer", None) or []
+        sb3_return = (float(np.mean([ep["r"] for ep in ep_buffer]))
+                      if len(ep_buffer) else float("nan"))
 
         row = {"timesteps": int(self.num_timesteps), "sb3_ep_rew_mean": sb3_return}
         row.update(means)
+        row.update({f"{k}_std": v for k, v in stds.items()})
         self.history.append({"means": means, "stds": stds, "timesteps": self.num_timesteps})
         with open(self.log_path, "a", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=["timesteps", "sb3_ep_rew_mean"] + METRIC_KEYS)
+            writer = csv.DictWriter(f, fieldnames=self.log_fields)
             writer.writerow(row)
 
         self.model.save(os.path.join(self.save_dir, "latest"))

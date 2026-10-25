@@ -21,30 +21,17 @@ from core.observations import (
     _cpa,
 )
 from core.tools import kwikqdrdist
-from core.actions import HeadingAction, SpeedAction, combine_action_spaces
+from core.actions import MpS2Kt, HeadingAction, SpeedAction, combine_action_spaces
 import bluesky_gym.envs.common.functions as fn
 
 from competitor.config import (
     AIRSPEED_MEAN,
     AIRSPEED_STD,
-    CONFLICT_WEIGHT,
-    D_HEADING,
-    D_SPEED,
-    ACTION_FREQUENCY,
-    DCPA_LIMIT_NM,
-    DRIFT_PENALTY,
     INTRUSION_NM,
     OBSTACLE_DISTANCE_NORM_KM,
-    PROGRESS_PER_KM,
-    PROXIMITY_HORIZON_KM,
-    PROXIMITY_WEIGHT,
-    REACH_REWARD,
-    RESTRICTED_EVENT_PENALTY,
     SECTOR_DISTANCE_NORM_KM,
-    SECTOR_EXIT_EVENT_PENALTY,
-    TCPA_HORIZON_S,
-    TIMEOUT_PENALTY,
     WAYPOINT_DISTANCE_NORM_KM,
+    resolve_mdp_config,
 )
 from competitor.geometry import latlon_to_nm, polygon_clearance, vertices_to_nm
 from competitor.observations import (
@@ -55,10 +42,18 @@ from competitor.observations import (
 )
 
 
+REWARD_TERMS = (
+    "progress", "conflict_now", "conflict_predicted", "obstacle_proximity",
+    "sector_proximity", "restricted_event", "sector_exit_event", "drift",
+    "reach", "timeout",
+)
+
+
 class CompetitionMdpV1:
     """Mixin: drop-in MDP v1 on top of CompetitionEnv / CompetitionZooEnv."""
 
-    def _setup_mdp_v1(self, n_neighbors):
+    def _setup_mdp_v1(self, n_neighbors, mdp_cfg=None):
+        self.mdp_cfg = dict(mdp_cfg) if mdp_cfg is not None else resolve_mdp_config()
         self.waypoint_obs = WaypointObservation(n=1, distance_norm=WAYPOINT_DISTANCE_NORM_KM)
         self.airspeed_obs = OwnAirspeedObservation(spd_mean=AIRSPEED_MEAN, spd_std=AIRSPEED_STD)
         self.own_status_obs = OwnStatusObservation()
@@ -96,10 +91,12 @@ class CompetitionMdpV1:
             self.action_space = action_space
 
         self._prev_goal_dist_km = {}
+        self.last_reward_terms = {}
 
     def reset(self, **kwargs):
         result = super().reset(**kwargs)
         self._prev_goal_dist_km = {}
+        self.last_reward_terms = {}
         return result
 
     # ------------------------------------------------------------------ hooks
@@ -125,15 +122,40 @@ class CompetitionMdpV1:
         }
 
     def _get_action(self, ac_id, action):
+        if self.mdp_cfg["ACTION_MODE"] == "goal_relative":
+            self._goal_relative_action(ac_id, action)
+            return
         self.heading_action.execute(ac_id, action[0])
         self.speed_action.execute(ac_id, action[1])
 
-    def _get_reward(self, ac_id):
-        """Training signal only — does not affect scored metrics or termination."""
+    def _goal_relative_action(self, ac_id, action):
         ac_idx = bs.traf.id2idx(ac_id)
         if ac_idx < 0:
+            return
+        goal_lat, goal_lon = self._mdp_goal(ac_id)
+        qdr, _ = kwikqdrdist(bs.traf.lat[ac_idx], bs.traf.lon[ac_idx], goal_lat, goal_lon)
+        a_hdg = float(np.clip(action[0], -1.0, 1.0))
+        a_spd = float(np.clip(action[1], -1.0, 1.0))
+        new_hdg = fn.bound_angle_positive_negative_180(
+            qdr + a_hdg * self.mdp_cfg["GOAL_MAX_OFFSET_DEG"])
+        nominal_kt = getattr(self, "ac_spd", AIRSPEED_MEAN) * MpS2Kt
+        new_spd = nominal_kt + a_spd * self.mdp_cfg["SPEED_RANGE_KT"]
+        bs.stack.stack(f"HDG {ac_id} {new_hdg}")
+        bs.stack.stack(f"SPD {ac_id} {new_spd}")
+
+    def _get_reward(self, ac_id):
+        """Training signal only — does not affect scored metrics or termination.
+
+        Each additive term is also stored in ``last_reward_terms[ac_id]`` so
+        training telemetry can show which term dominates the return.
+        """
+        ac_idx = bs.traf.id2idx(ac_id)
+        if ac_idx < 0:
+            self.last_reward_terms[ac_id] = dict.fromkeys(REWARD_TERMS, 0.0)
             return 0.0
 
+        cfg = self.mdp_cfg
+        terms = dict.fromkeys(REWARD_TERMS, 0.0)
         m = self.metrics[ac_id]
         base = self._mdp_baseline(ac_id)
         goal_lat, goal_lon = self._mdp_goal(ac_id)
@@ -143,12 +165,14 @@ class CompetitionMdpV1:
         _, dist_nm = kwikqdrdist(lat, lon, goal_lat, goal_lon)
         dist_km = dist_nm * NM2KM
         prev = self._prev_goal_dist_km.get(ac_id, dist_km)
-        reward = PROGRESS_PER_KM * (prev - dist_km)
+        terms["progress"] = cfg["PROGRESS_PER_KM"] * (prev - dist_km)
         self._prev_goal_dist_km[ac_id] = dist_km
 
         threat = False
 
         # Predicted and current losses of separation.
+        tcpa_horizon = cfg["TCPA_HORIZON_S"]
+        dcpa_limit = cfg["DCPA_LIMIT_NM"]
         for other_idx in range(bs.traf.ntraf):
             if other_idx == ac_idx:
                 continue
@@ -156,52 +180,54 @@ class CompetitionMdpV1:
             dcpa_nm = dcpa_m / 1852.0
             _, pair_nm = kwikqdrdist(lat, lon, bs.traf.lat[other_idx], bs.traf.lon[other_idx])
             if pair_nm < INTRUSION_NM:
-                reward -= CONFLICT_WEIGHT * (1.0 - pair_nm / INTRUSION_NM)
+                terms["conflict_now"] -= cfg["CONFLICT_WEIGHT"] * (1.0 - pair_nm / INTRUSION_NM)
                 threat = True
-            if np.isfinite(tcpa_s) and 0.0 <= tcpa_s <= TCPA_HORIZON_S and dcpa_nm < DCPA_LIMIT_NM:
-                severity = (1.0 - dcpa_nm / DCPA_LIMIT_NM) * (1.0 - tcpa_s / TCPA_HORIZON_S)
-                reward -= CONFLICT_WEIGHT * max(0.0, severity)
+            if np.isfinite(tcpa_s) and 0.0 <= tcpa_s <= tcpa_horizon and dcpa_nm < dcpa_limit:
+                severity = (1.0 - dcpa_nm / dcpa_limit) * (1.0 - tcpa_s / tcpa_horizon)
+                terms["conflict_predicted"] -= cfg["CONFLICT_WEIGHT"] * max(0.0, severity)
                 threat = True
 
+        horizon_km = cfg["PROXIMITY_HORIZON_KM"]
         center = self.scenario.center
         own_nm = latlon_to_nm(center, lat, lon)
-        min_obs = PROXIMITY_HORIZON_KM
+        min_obs = horizon_km
         for obs in self.scenario.obstacles:
             sd_km, _ = polygon_clearance(
                 own_nm, vertices_to_nm(center, obs.vertices), inside_negative=True)
             min_obs = min(min_obs, sd_km)
-        if min_obs < PROXIMITY_HORIZON_KM:
-            clipped = max(min_obs, -PROXIMITY_HORIZON_KM)
-            reward -= PROXIMITY_WEIGHT * (PROXIMITY_HORIZON_KM - clipped) / PROXIMITY_HORIZON_KM
+        if min_obs < horizon_km:
+            clipped = max(min_obs, -horizon_km)
+            terms["obstacle_proximity"] = -cfg["PROXIMITY_WEIGHT"] * (horizon_km - clipped) / horizon_km
             threat = True
 
         sector_clearance, _ = polygon_clearance(
             own_nm, vertices_to_nm(center, self.scenario.sector), inside_negative=False)
-        if sector_clearance < PROXIMITY_HORIZON_KM:
-            clipped = max(sector_clearance, -PROXIMITY_HORIZON_KM)
-            reward -= PROXIMITY_WEIGHT * (PROXIMITY_HORIZON_KM - clipped) / PROXIMITY_HORIZON_KM
+        if sector_clearance < horizon_km:
+            clipped = max(sector_clearance, -horizon_km)
+            terms["sector_proximity"] = -cfg["PROXIMITY_WEIGHT"] * (horizon_km - clipped) / horizon_km
             threat = True
 
         d_restricted = m["restricted_area_events"] - base["restricted_area_events"]
         d_sector = m["sector_exit_events"] - base["sector_exit_events"]
-        reward -= RESTRICTED_EVENT_PENALTY * d_restricted
-        reward -= SECTOR_EXIT_EVENT_PENALTY * d_sector
+        terms["restricted_event"] = -cfg["RESTRICTED_EVENT_PENALTY"] * d_restricted
+        terms["sector_exit_event"] = -cfg["SECTOR_EXIT_EVENT_PENALTY"] * d_sector
         if d_restricted > 0 or d_sector > 0:
             threat = True
 
         if not threat:
             qdr, _ = kwikqdrdist(lat, lon, goal_lat, goal_lon)
             drift = abs(np.deg2rad(fn.bound_angle_positive_negative_180(hdg - qdr)))
-            reward += DRIFT_PENALTY * drift
+            terms["drift"] = cfg["DRIFT_PENALTY"] * drift
 
         reached = m["waypoint_reached"] - base["waypoint_reached"]
-        reward += REACH_REWARD * reached
+        terms["reach"] = cfg["REACH_REWARD"] * reached
 
         if (m["flight_time"] >= self.episode_time_limit
                 and not m["waypoint_reached"]):
-            reward += TIMEOUT_PENALTY
+            terms["timeout"] = cfg["TIMEOUT_PENALTY"]
 
-        return float(reward)
+        self.last_reward_terms[ac_id] = terms
+        return float(sum(terms.values()))
 
     # ---------------------------------------------------------- env adapters
     def _mdp_goal(self, ac_id):
@@ -227,9 +253,9 @@ class CompetitionMdpV1:
         return base[ac_id]
 
 
-def mdp_v1_init_kwargs(kwargs):
+def mdp_v1_init_kwargs(kwargs, mdp_cfg):
     """Apply v1 action defaults without overriding an explicit caller value."""
-    kwargs.setdefault("d_heading", D_HEADING)
-    kwargs.setdefault("d_speed", D_SPEED)
-    kwargs.setdefault("action_frequency", ACTION_FREQUENCY)
+    kwargs.setdefault("d_heading", mdp_cfg["D_HEADING"])
+    kwargs.setdefault("d_speed", mdp_cfg["D_SPEED"])
+    kwargs.setdefault("action_frequency", mdp_cfg["ACTION_FREQUENCY"])
     return kwargs

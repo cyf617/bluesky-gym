@@ -14,6 +14,8 @@ Run it as a module from the repo root:
     python -m scripts.evaluate_competition --env sa --episodes 20   # quick check
     python -m scripts.evaluate_competition --env sa --model my_ppo   # your policy
     python -m scripts.evaluate_competition --env sa --mdp-v1         # competitor MDP v1
+    python -m scripts.evaluate_competition --env sa --run-dir competitor/results/<run>
+                                    # MDP v1 + that run's overrides + its selected.zip
 
 The two functions in the EDIT block below are the only things a competitor
 changes: point `make_env` at your env subclass / wrapper stack, and load your
@@ -43,7 +45,7 @@ METRIC_KEYS = [
 
 
 # ==================== EDIT THESE TWO FOR YOUR SUBMISSION ======================
-def make_env(kind, n_agents=N_AGENTS_MA, mdp_v1=False):
+def make_env(kind, n_agents=N_AGENTS_MA, mdp_v1=False, mdp_overrides=None):
     """Return the environment to evaluate.
 
     Default = the base competition env. Swap in your own subclass or wrapper
@@ -60,8 +62,9 @@ def make_env(kind, n_agents=N_AGENTS_MA, mdp_v1=False):
         from competitor.envs import CompetitionEnvV1, CompetitionZooEnvV1
         if kind == "sa":
             # Training uses FlattenObservation + MlpPolicy; eval must match.
-            return FlattenObservation(CompetitionEnvV1(render_mode=None))
-        return CompetitionZooEnvV1(n_agents=n_agents)
+            return FlattenObservation(
+                CompetitionEnvV1(render_mode=None, mdp_overrides=mdp_overrides))
+        return CompetitionZooEnvV1(n_agents=n_agents, mdp_overrides=mdp_overrides)
     if kind == "sa":
         import gymnasium as gym
         import bluesky_gym
@@ -95,9 +98,9 @@ def load_policy(kind, model_path=None):
 # =============================================================================
 
 
-def run_single_agent(n_episodes, act, mdp_v1=False):
+def run_single_agent(n_episodes, act, mdp_v1=False, mdp_overrides=None):
     """One record (final info dict) per episode."""
-    env = make_env("sa", mdp_v1=mdp_v1)
+    env = make_env("sa", mdp_v1=mdp_v1, mdp_overrides=mdp_overrides)
     records = []
     for ep in range(n_episodes):
         obs, info = env.reset(seed=SEED if ep == 0 else None)
@@ -109,9 +112,9 @@ def run_single_agent(n_episodes, act, mdp_v1=False):
     return records
 
 
-def run_multi_agent(n_episodes, act, n_agents, mdp_v1=False):
+def run_multi_agent(n_episodes, act, n_agents, mdp_v1=False, mdp_overrides=None):
     """One record per agent-episode (each agent's final info as it leaves)."""
-    env = make_env("ma", n_agents=n_agents, mdp_v1=mdp_v1)
+    env = make_env("ma", n_agents=n_agents, mdp_v1=mdp_v1, mdp_overrides=mdp_overrides)
     records = []
     for ep in range(n_episodes):
         observations, infos = env.reset(seed=SEED if ep == 0 else None)
@@ -165,13 +168,15 @@ def write_csv(records, out_path):
     print(f"\nwrote per-episode metrics to {out_path}")
 
 
-def evaluate(kind, n_episodes, n_agents, model_path, out_path, mdp_v1=False):
+def evaluate(kind, n_episodes, n_agents, model_path, out_path, mdp_v1=False,
+             mdp_overrides=None):
     act = load_policy(kind, model_path)
     if kind == "sa":
-        records = run_single_agent(n_episodes, act, mdp_v1=mdp_v1)
+        records = run_single_agent(n_episodes, act, mdp_v1=mdp_v1, mdp_overrides=mdp_overrides)
         label = "Single-agent"
     else:
-        records = run_multi_agent(n_episodes, act, n_agents, mdp_v1=mdp_v1)
+        records = run_multi_agent(n_episodes, act, n_agents, mdp_v1=mdp_v1,
+                                  mdp_overrides=mdp_overrides)
         label = "Multi-agent"
     summarize(records, label)
     write_csv(records, out_path or f"competition_eval_{kind}.csv")
@@ -191,7 +196,22 @@ def main():
     parser.add_argument("--out", default=None, help="per-episode CSV output path")
     parser.add_argument("--mdp-v1", action="store_true",
                         help="evaluate competitor MDP v1 (CompetitionEnvV1 / CompetitionZooEnvV1)")
+    parser.add_argument("--run-dir", default=None,
+                        help="training run directory: implies --mdp-v1, applies its "
+                             "config.json mdp_overrides, and defaults --model to selected.zip")
     args = parser.parse_args()
+
+    mdp_overrides = None
+    if args.run_dir:
+        import json
+        args.mdp_v1 = True
+        config_path = os.path.join(args.run_dir, "config.json")
+        if os.path.exists(config_path):
+            with open(config_path) as f:
+                mdp_overrides = json.load(f).get("mdp_overrides") or None
+        if args.model is None:
+            args.model = os.path.join(args.run_dir, "selected")
+        print(f"run dir {args.run_dir}: model={args.model}  mdp_overrides={mdp_overrides}")
 
     if args.episodes != N_EPISODES:
         print(f"NOTE: running {args.episodes} episodes — the official protocol is "
@@ -200,7 +220,8 @@ def main():
     kinds = ["sa", "ma"] if args.env == "both" else [args.env]
     for kind in kinds:
         evaluate(kind, args.episodes, args.n_agents, args.model,
-                 args.out if args.env != "both" else None, mdp_v1=args.mdp_v1)
+                 args.out if args.env != "both" else None, mdp_v1=args.mdp_v1,
+                 mdp_overrides=mdp_overrides)
 
 
 if __name__ == "__main__":

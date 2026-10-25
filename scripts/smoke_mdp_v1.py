@@ -10,6 +10,7 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
 from competitor.config import ACTION_FREQUENCY, D_HEADING, D_SPEED
 from competitor.envs import CompetitionEnvV1
+from competitor.vec_env import RewardTermsInfo
 
 
 REQUIRED_KEYS = {
@@ -56,6 +57,22 @@ def smoke_sa():
     # Do not env.close() — BlueSky quit() poisons the process-global sim.
 
 
+def smoke_goal_relative():
+    """A constant heading offset must still arrive (it circles in relative mode)."""
+    env = RewardTermsInfo(CompetitionEnvV1(
+        render_mode=None, mdp_overrides={"ACTION_MODE": "goal_relative"}))
+    env.reset(seed=0)
+    terminated = truncated = False
+    total = 0.0
+    while not (terminated or truncated):
+        _, reward, terminated, truncated, info = env.step(np.array([0.3, 0.0]))
+        total += reward
+    assert info["waypoint_reached"] == 1, "goal_relative constant offset did not arrive"
+    assert np.isclose(sum(info["reward_terms"].values()), total)
+    print(f"goal_relative smoke: ok (arrived in {info['flight_time']:.0f} s)")
+
+
 if __name__ == "__main__":
     smoke_sa()
+    smoke_goal_relative()
     print("all smoke checks passed")
