@@ -278,11 +278,49 @@
         best_safety（到达率 ≥ ${sel.min_arrival != null ? (100 * sel.min_arrival).toFixed(0) : 90}%）：${sel.best_safety_step != null ? `第 ${fmt(sel.best_safety_step)} 步 · 到达 ${(100 * sel.best_safety.waypoint_reached).toFixed(0)}% · 冲突 ${fmt(sel.best_safety.intrusion_time)} s · 限制区 ${fmt(sel.best_safety.time_in_restricted_area)} s` : "—"}<br>
         当前选用：<b>${esc(sel.selected || "—")}</b>
       </div>
+      ${officialSection(d)}
       <h3 class="section-title">全部运行对比（最近一次评估）</h3>
       <div class="panel table-wrap">${compareTable()}</div>`;
     root.querySelectorAll("tr[data-run]").forEach((tr) => tr.addEventListener("click", () => {
       state.focused = tr.dataset.run; persist(); refresh();
     }));
+  }
+
+  function officialSection(d) {
+    const off = d.official || { runs: [] };
+    if (!off.runs.length) {
+      return `<h3 class="section-title">官方评估（seed 42）</h3><div class="panel small muted">还没有官方评估结果。运行
+        <code>python -m scripts.evaluate_competition --env sa --run-dir competitor/results/${esc(d.summary.name)} --out competitor/results/${esc(d.summary.name)}/official_seed42_1000_selected.csv</code>
+        ，以及一次中性基线 <code>--out competitor/results/official_seed42_1000_neutral.csv</code>（不加 --run-dir）。</div>`;
+    }
+    const neutralBy = Object.fromEntries((off.neutral || []).map((t) => [t.episodes, t]));
+    const rows = [];
+    const seen = new Set();
+    for (const t of off.runs) {
+      const nt = neutralBy[t.episodes];
+      if (nt && !seen.has(t.episodes)) {
+        seen.add(t.episodes);
+        rows.push(`<tr><td class="muted">中性 [0,0]（${t.episodes} 回合）</td>${METRICS.map((m) => `<td class="muted">${metricFmt(m, metricVal(m, nt.means[m.key]))}</td>`).join("")}</tr>`);
+      }
+      rows.push(`<tr><td><b>${esc(t.file.replace(/^official_seed42_\d+_/, "").replace(/\.csv$/, ""))}</b>（${t.episodes} 回合）</td>${METRICS.map((m) => {
+        const v = metricVal(m, t.means[m.key]);
+        const nv = nt ? metricVal(m, nt.means[m.key]) : null;
+        const cls = nv === null || Math.abs(v - nv) < 1e-9 ? "" : (m.better === "high" ? v > nv : v < nv) ? "good" : "bad";
+        return `<td class="${cls}">${metricFmt(m, v)}</td>`;
+      }).join("")}</tr>`);
+    }
+    const PAIR_LABEL = { intrusion_time: "冲突时间", time_in_restricted_area: "限制区时间", time_outside_sector: "扇区外时间", flight_time: "飞行时间" };
+    const paired = off.runs.filter((t) => t.paired).map((t) => `<tr><td>${esc(t.file.replace(/^official_seed42_\d+_/, "").replace(/\.csv$/, ""))}</td>${Object.keys(PAIR_LABEL).map((k) => {
+      const p = t.paired[k];
+      if (!p) return "<td>—</td>";
+      const sig = Math.abs(p.mean_diff) > 2 * p.se;
+      const cls = !sig ? "muted" : p.mean_diff < 0 ? "good" : "bad";
+      return `<td class="${cls}">${p.mean_diff >= 0 ? "+" : ""}${fmt(p.mean_diff)} ± ${fmt(p.se)} s<br><span class="small">更好 ${p.better} / 更差 ${p.worse}</span></td>`;
+    }).join("")}</tr>`).join("");
+    return `<h3 class="section-title">官方评估（seed 42，与提交时相同的协议）</h3>
+      <div class="panel table-wrap"><table class="data"><tr><th>检查点</th>${METRICS.map((m) => `<th>${m.label}</th>`).join("")}</tr>${rows.join("")}</table></div>
+      ${paired ? `<h3 class="section-title">逐场景配对比较（模型 − 中性，均值 ± 标准误；绿/红 = 差异超过 2 个标准误）</h3>
+      <div class="panel table-wrap"><table class="data"><tr><th>检查点</th>${Object.values(PAIR_LABEL).map((l) => `<th>${l}</th>`).join("")}</tr>${paired}</table></div>` : ""}`;
   }
 
   function compareTable() {

@@ -101,3 +101,23 @@ def test_downsample_keeps_last_point():
     out = data.downsample_columns(cols, max_points=1000)
     assert len(out["x"]) <= 1001
     assert out["x"][-1] == 4999
+
+
+def test_official_results_pairs_with_neutral(tmp_path):
+    results = tmp_path / "results"
+    header = "episode_index,waypoint_reached,flight_time,intrusion_events,intrusion_time," \
+             "restricted_area_events,time_in_restricted_area,sector_exit_events," \
+             "time_outside_sector,total_reward\n"
+    write(str(results / "official_seed42_3_neutral.csv"),
+          header + "0,1,800,1,60,1,100,0,0,0\n1,1,900,0,0,0,0,0,0,0\n2,1,700,1,30,1,50,0,0,0\n")
+    write(str(results / "run" / "config.json"), "{}")
+    write(str(results / "run" / "official_seed42_3_selected.csv"),
+          header + "0,1,810,0,0,1,80,0,0,1\n1,1,880,0,0,0,0,0,0,1\n2,1,720,1,40,0,0,0,0,1\n")
+    off = data.official_results(str(results), "run")
+    row = off["runs"][0]
+    assert row["episodes"] == 3
+    assert row["means"]["intrusion_time"] == 40 / 3
+    p = row["paired"]["intrusion_time"]
+    assert (p["better"], p["worse"]) == (1, 1)
+    assert p["mean_diff"] == (-60 + 0 + 10) / 3
+    assert off["neutral"][0]["means"]["intrusion_time"] == 30

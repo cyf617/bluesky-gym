@@ -224,7 +224,62 @@ def run_detail(results_dir, name, now=None):
         "progress_source": progress_source,
         "evals": read_csv_columns(os.path.join(run_dir, "eval_log.csv")),
         "episodes": downsample_columns(read_csv_columns(os.path.join(run_dir, "episodes.csv"))),
+        "official": official_results(results_dir, name),
     }
+
+
+OFFICIAL_KEYS = ("waypoint_reached", "flight_time", "intrusion_events", "intrusion_time",
+                 "restricted_area_events", "time_in_restricted_area",
+                 "sector_exit_events", "time_outside_sector")
+PAIRED_KEYS = ("intrusion_time", "time_in_restricted_area", "time_outside_sector", "flight_time")
+
+
+def _official_table(path, neutral=None):
+    cols = read_csv_columns(path)
+    n = len(cols.get("episode_index", []))
+    if not n:
+        return None
+    out = {"file": os.path.basename(path), "episodes": n, "means": {}, "stds": {}}
+    for k in OFFICIAL_KEYS:
+        vals = [v for v in cols.get(k, []) if isinstance(v, float)]
+        if vals:
+            mean = sum(vals) / len(vals)
+            out["means"][k] = mean
+            out["stds"][k] = math.sqrt(sum((v - mean) ** 2 for v in vals) / len(vals))
+    if neutral and len(neutral.get("episode_index", [])) == n:
+        out["paired"] = {}
+        for k in PAIRED_KEYS:
+            a, b = cols.get(k, []), neutral.get(k, [])
+            diffs = [x - y for x, y in zip(a, b) if isinstance(x, float) and isinstance(y, float)]
+            if not diffs:
+                continue
+            mean = sum(diffs) / len(diffs)
+            sd = math.sqrt(sum((d - mean) ** 2 for d in diffs) / max(len(diffs) - 1, 1))
+            out["paired"][k] = {
+                "better": sum(d < 0 for d in diffs), "worse": sum(d > 0 for d in diffs),
+                "mean_diff": mean, "se": sd / math.sqrt(len(diffs)),
+            }
+    return out
+
+
+def official_results(results_dir, name):
+    """Official-protocol (seed 42) CSVs from evaluate_competition.py, paired with neutral.
+
+    The neutral reference is ``<results>/official_seed42_<N>_neutral.csv``; the
+    same seed gives the same scenario sequence, so episode i is compared with
+    episode i (paired difference, standard error over episodes).
+    """
+    run_dir = os.path.join(results_dir, name)
+    rows = []
+    for path in sorted(glob.glob(os.path.join(run_dir, "official_seed42_*.csv"))):
+        n_eps = os.path.basename(path).split("_")[2]
+        neutral = read_csv_columns(os.path.join(results_dir, f"official_seed42_{n_eps}_neutral.csv"))
+        table = _official_table(path, neutral)
+        if table:
+            rows.append(table)
+    neutral_tables = [_official_table(p) for p in
+                      sorted(glob.glob(os.path.join(results_dir, "official_seed42_*_neutral.csv")))]
+    return {"runs": rows, "neutral": [t for t in neutral_tables if t]}
 
 
 def replay_index(results_dir, name):
