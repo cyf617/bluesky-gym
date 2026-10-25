@@ -159,15 +159,19 @@ def summarize(records, label):
         print(f"| {name} | {vals.mean():.3f} | {vals.std():.3f} |")
     print(f"\n_total_reward (own reward, not comparable across teams): "
           f"{cols['total_reward'].mean():.3f} ± {cols['total_reward'].std():.3f}_")
+    if records and "shield_interventions" in records[0]:
+        si = np.array([r["shield_interventions"] for r in records], dtype=float)
+        print(f"_shield interventions per episode: {si.mean():.2f} ± {si.std():.2f}_")
 
 
 def write_csv(records, out_path):
     os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+    extra = ["shield_interventions"] if records and all("shield_interventions" in r for r in records) else []
     with open(out_path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["episode_index"] + METRIC_KEYS)
+        writer = csv.DictWriter(f, fieldnames=["episode_index"] + METRIC_KEYS + extra)
         writer.writeheader()
         for i, r in enumerate(records):
-            writer.writerow({"episode_index": i, **{k: r[k] for k in METRIC_KEYS}})
+            writer.writerow({"episode_index": i, **{k: r[k] for k in METRIC_KEYS + extra}})
     print(f"\nwrote per-episode metrics to {out_path}")
 
 
@@ -199,6 +203,9 @@ def main():
     parser.add_argument("--out", default=None, help="per-episode CSV output path")
     parser.add_argument("--mdp-v1", action="store_true",
                         help="evaluate competitor MDP v1 (CompetitionEnvV1 / CompetitionZooEnvV1)")
+    parser.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
+                        help="MDP v1 override (implies --mdp-v1), applied on top of --run-dir's, "
+                             "e.g. --set SHIELD=1 --set ACTION_MODE=goal_relative")
     parser.add_argument("--run-dir", default=None,
                         help="training run directory: implies --mdp-v1, applies its "
                              "config.json mdp_overrides, and defaults --model to selected.zip")
@@ -215,6 +222,12 @@ def main():
         if args.model is None:
             args.model = os.path.join(args.run_dir, "selected")
         print(f"run dir {args.run_dir}: model={args.model}  mdp_overrides={mdp_overrides}")
+    if args.set:
+        from competitor.config import parse_overrides, resolve_mdp_config
+        args.mdp_v1 = True
+        mdp_overrides = {**(mdp_overrides or {}), **parse_overrides(args.set)}
+        resolve_mdp_config(mdp_overrides)  # fail fast on unknown keys
+        print(f"mdp_overrides after --set: {mdp_overrides}")
 
     if args.episodes != N_EPISODES:
         print(f"NOTE: running {args.episodes} episodes — the official protocol is "

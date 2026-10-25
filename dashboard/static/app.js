@@ -15,9 +15,10 @@
     progress: "进度", reach: "到达", timeout: "超时", conflict_now: "当前冲突",
     conflict_predicted: "预测冲突", obstacle_proximity: "接近障碍", sector_proximity: "接近边界",
     restricted_event: "进入限制区", sector_exit_event: "飞出扇区",
-    intrusion_time: "冲突秒数", restricted_time: "限制区秒数", drift: "偏航",
+    intrusion_time: "冲突秒数", restricted_time: "限制区秒数", sector_time: "扇区外秒数",
+    intrusion_event: "进入冲突", drift: "偏航",
   };
-  const SAFETY_TERMS = ["conflict_now", "conflict_predicted", "obstacle_proximity", "sector_proximity", "restricted_event", "sector_exit_event", "intrusion_time", "restricted_time"];
+  const SAFETY_TERMS = ["conflict_now", "conflict_predicted", "obstacle_proximity", "sector_proximity", "restricted_event", "sector_exit_event", "intrusion_time", "restricted_time", "sector_time", "intrusion_event"];
   const TUNABLE_HELP = {
     ACTION_MODE: "动作模式：relative = 在当前航向/速度上增减；goal_relative = 相对目标方位的偏角 + 绝对速度（0 动作 = 直飞目标）",
     D_HEADING: "relative 模式：|动作|=1 时的航向变化（度）",
@@ -38,6 +39,14 @@
     SECTOR_EXIT_EVENT_PENALTY: "每次飞出扇区的惩罚",
     INTRUSION_TIME_WEIGHT: "每秒处于冲突（< 5 NM，每架邻机）的惩罚，对应官方 intrusion_time",
     RESTRICTED_TIME_WEIGHT: "每秒处于限制区内的惩罚，对应官方 time_in_restricted_area",
+    SECTOR_TIME_WEIGHT: "每秒处于扇区外的惩罚，对应官方 time_outside_sector",
+    INTRUSION_EVENT_PENALTY: "每次新进入冲突（失去 5 NM 间隔）的惩罚，对应官方 intrusion_events",
+    SHIELD: "动作安全过滤器：1 = 开启（仅 goal_relative 模式），把不安全的航向替换为最近的安全航向",
+    SHIELD_LOOKAHEAD_S: "过滤器外推时长（s），每 10 s 采样一点",
+    SHIELD_OBSTACLE_BUFFER_KM: "过滤器：离限制区小于此距离判为不安全（km）",
+    SHIELD_SECTOR_BUFFER_KM: "过滤器：离扇区边界小于此距离判为不安全（km）",
+    SHIELD_INTRUDER_NM: "过滤器：与匀速外推的入侵机最近距离小于此值判为不安全（NM）",
+    SHIELD_BANK_DEG: "过滤器转弯模型：0 = 直线（立即转到候选航向）；>0 = 先按此坡度角转弯再直飞（BlueSky A320 默认 25°）",
   };
 
   const saved = JSON.parse(localStorage.getItem("bsdash") || "{}");
@@ -59,7 +68,7 @@
     const names = state.runs.map((r) => r.name).filter((n) => state.compare.has(n) || n === state.focused);
     return names.length ? names : (state.focused ? [state.focused] : []);
   };
-  const STATE_LABEL = { running: "训练中", finished: "已完成", stopped: "已中断" };
+  const STATE_LABEL = { running: "训练中", finished: "已完成", stopped: "已中断", early_stopped: "已按规则停止" };
   // Compare each run with the neutral policy on exactly its eval scenarios (seed + episode count).
   function baselineFor(name) {
     const run = state.runs.find((r) => r.name === name);
@@ -276,7 +285,10 @@
       <div class="panel small">
         best_arrival：${sel.best_arrival_step != null ? `第 ${fmt(sel.best_arrival_step)} 步 · 到达 ${(100 * sel.best_arrival.waypoint_reached).toFixed(0)}% · 冲突 ${fmt(sel.best_arrival.intrusion_time)} s` : "—"}<br>
         best_safety（到达率 ≥ ${sel.min_arrival != null ? (100 * sel.min_arrival).toFixed(0) : 90}%）：${sel.best_safety_step != null ? `第 ${fmt(sel.best_safety_step)} 步 · 到达 ${(100 * sel.best_safety.waypoint_reached).toFixed(0)}% · 冲突 ${fmt(sel.best_safety.intrusion_time)} s · 限制区 ${fmt(sel.best_safety.time_in_restricted_area)} s` : "—"}<br>
+        best_safety_total（到达率 ≥ ${sel.min_arrival != null ? (100 * sel.min_arrival).toFixed(0) : 90}%，冲突 + 限制区 + 扇区外时间最小）：${sel.best_safety_total_step != null ? `第 ${fmt(sel.best_safety_total_step)} 步 · 到达 ${(100 * sel.best_safety_total.waypoint_reached).toFixed(0)}% · 冲突 ${fmt(sel.best_safety_total.intrusion_time)} s · 限制区 ${fmt(sel.best_safety_total.time_in_restricted_area)} s · 扇区外 ${fmt(sel.best_safety_total.time_outside_sector)} s` : "—"}<br>
         当前选用：<b>${esc(sel.selected || "—")}</b>
+        ${sel.snapshots && Object.keys(sel.snapshots).length ? `<br>快照：${Object.entries(sel.snapshots).map(([k, v]) => `${esc(k)}（第 ${fmt(v)} 步）`).join("，")}` : ""}
+        ${sel.stopped_early ? `<br><span class="bad">已按停止规则提前结束：${esc(sel.stopped_early)}</span>` : ""}
       </div>
       ${officialSection(d)}
       <h3 class="section-title">全部运行对比（最近一次评估）</h3>
@@ -300,26 +312,29 @@
       const nt = neutralBy[t.episodes];
       if (nt && !seen.has(t.episodes)) {
         seen.add(t.episodes);
-        rows.push(`<tr><td class="muted">中性 [0,0]（${t.episodes} 回合）</td>${METRICS.map((m) => `<td class="muted">${metricFmt(m, metricVal(m, nt.means[m.key]))}</td>`).join("")}</tr>`);
+        rows.push(`<tr><td class="muted">中性 [0,0]（${t.episodes} 回合）</td>${METRICS.map((m) => `<td class="muted">${metricFmt(m, metricVal(m, nt.means[m.key]))}</td>`).join("")}<td class="muted">${(100 * nt.clean_frac).toFixed(1)}%</td><td class="muted">—</td></tr>`);
       }
       rows.push(`<tr><td><b>${esc(t.file.replace(/^official_seed42_\d+_/, "").replace(/\.csv$/, ""))}</b>（${t.episodes} 回合）</td>${METRICS.map((m) => {
         const v = metricVal(m, t.means[m.key]);
         const nv = nt ? metricVal(m, nt.means[m.key]) : null;
         const cls = nv === null || Math.abs(v - nv) < 1e-9 ? "" : (m.better === "high" ? v > nv : v < nv) ? "good" : "bad";
         return `<td class="${cls}">${metricFmt(m, v)}</td>`;
-      }).join("")}</tr>`);
+      }).join("")}<td>${t.clean_frac != null ? (100 * t.clean_frac).toFixed(1) + "%" : "—"}</td><td>${t.shield_interventions != null ? fmt(t.shield_interventions) : "—"}</td></tr>`);
     }
-    const PAIR_LABEL = { intrusion_time: "冲突时间", time_in_restricted_area: "限制区时间", time_outside_sector: "扇区外时间", flight_time: "飞行时间" };
+    const PAIR_LABEL = Object.fromEntries(METRICS.map((m) => [m.key, m.label]));
     const paired = off.runs.filter((t) => t.paired).map((t) => `<tr><td>${esc(t.file.replace(/^official_seed42_\d+_/, "").replace(/\.csv$/, ""))}</td>${Object.keys(PAIR_LABEL).map((k) => {
       const p = t.paired[k];
       if (!p) return "<td>—</td>";
-      const sig = Math.abs(p.mean_diff) > 2 * p.se;
-      const cls = !sig ? "muted" : p.mean_diff < 0 ? "good" : "bad";
-      return `<td class="${cls}">${p.mean_diff >= 0 ? "+" : ""}${fmt(p.mean_diff)} ± ${fmt(p.se)} s<br><span class="small">更好 ${p.better} / 更差 ${p.worse}</span></td>`;
+      const m = METRICS.find((x) => x.key === k);
+      const sc = m.scale || 1, ci = 1.96 * p.se;
+      const sig = Math.abs(p.mean_diff) > ci;
+      const good = m.better === "high" ? p.mean_diff > 0 : p.mean_diff < 0;
+      const cls = !sig ? "muted" : good ? "good" : "bad";
+      return `<td class="${cls}">${p.mean_diff >= 0 ? "+" : ""}${fmt(p.mean_diff * sc)} ± ${fmt(ci * sc)}${m.unit === "%" ? " pp" : ""}<br><span class="small">更好 ${p.better} / 更差 ${p.worse}</span></td>`;
     }).join("")}</tr>`).join("");
     return `<h3 class="section-title">官方评估（seed 42，与提交时相同的协议）</h3>
-      <div class="panel table-wrap"><table class="data"><tr><th>检查点</th>${METRICS.map((m) => `<th>${m.label}</th>`).join("")}</tr>${rows.join("")}</table></div>
-      ${paired ? `<h3 class="section-title">逐场景配对比较（模型 − 中性，均值 ± 标准误；绿/红 = 差异超过 2 个标准误）</h3>
+      <div class="panel table-wrap"><table class="data"><tr><th>检查点</th>${METRICS.map((m) => `<th>${m.label}</th>`).join("")}<th>三项安全全为 0</th><th>过滤器介入/局</th></tr>${rows.join("")}</table></div>
+      ${paired ? `<h3 class="section-title">逐场景配对比较（模型 − 中性，均值 ± 95% 置信区间；绿/红 = 区间不含 0）</h3>
       <div class="panel table-wrap"><table class="data"><tr><th>检查点</th>${Object.values(PAIR_LABEL).map((l) => `<th>${l}</th>`).join("")}</tr>${paired}</table></div>` : ""}`;
   }
 

@@ -37,8 +37,14 @@ import shutil
 import numpy as np
 from stable_baselines3.common.callbacks import BaseCallback
 
-from competitor.checkpoint_rule import is_better_arrival, is_better_safety
+from competitor.checkpoint_rule import (
+    ArrivalStopRule,
+    is_better_arrival,
+    is_better_safety,
+    is_better_safety_total,
+)
 from competitor.metric_eval import (
+    EXTRA_KEYS,
     METRIC_KEYS,
     load_neutral_baseline,
     arrival_and_safety,
@@ -52,8 +58,13 @@ class OfficialMetricCheckpointCallback(BaseCallback):
     """Evaluate on official metrics every ``eval_freq`` timesteps and save."""
 
     def __init__(self, save_dir, eval_freq, eval_episodes, eval_seed,
-                 min_arrival=0.90, env_kwargs=None, verbose=1):
+                 min_arrival=0.90, env_kwargs=None, stop_rule=None, snapshot_steps=(),
+                 verbose=1):
         super().__init__(verbose)
+        self.stop_rule = stop_rule or ArrivalStopRule(after=None)
+        self.snapshot_steps = sorted(int(s) for s in snapshot_steps)
+        self.snapshots_saved = {}
+        self.best_safety_total = None
         self.env_kwargs = dict(env_kwargs or {})
         self.neutral = load_neutral_baseline(int(eval_seed), int(eval_episodes))
         self.save_dir = save_dir
@@ -67,8 +78,8 @@ class OfficialMetricCheckpointCallback(BaseCallback):
         self.best_safety = None
         self.history = []
         self.log_path = os.path.join(save_dir, "eval_log.csv")
-        self.log_fields = (["timesteps", "sb3_ep_rew_mean"] + METRIC_KEYS
-                           + [f"{k}_std" for k in METRIC_KEYS])
+        keys = METRIC_KEYS + EXTRA_KEYS
+        self.log_fields = (["timesteps", "sb3_ep_rew_mean"] + keys + [f"{k}_std" for k in keys])
         self.selection_path = os.path.join(save_dir, "selection.json")
 
     def _init_callback(self):
@@ -92,7 +103,8 @@ class OfficialMetricCheckpointCallback(BaseCallback):
             return True
         self._run_eval()
         self._next_eval = self.num_timesteps + self.eval_freq
-        return True
+        # Returning False ends model.learn(); the train script records why.
+        return self.stop_rule.reason is None
 
     def _run_eval(self):
         env = self._get_eval_env()
@@ -113,6 +125,10 @@ class OfficialMetricCheckpointCallback(BaseCallback):
             writer.writerow(row)
 
         self.model.save(os.path.join(self.save_dir, "latest"))
+        for step in self.snapshot_steps:
+            if step not in self.snapshots_saved and self.num_timesteps >= step:
+                self.model.save(os.path.join(self.save_dir, f"step_{step}"))
+                self.snapshots_saved[step] = int(self.num_timesteps)
 
         saved = []
         if is_better_arrival(means, self.best_arrival):
@@ -125,6 +141,12 @@ class OfficialMetricCheckpointCallback(BaseCallback):
             self.best_safety_step = int(self.num_timesteps)
             self.model.save(os.path.join(self.save_dir, "best_safety"))
             saved.append("best_safety")
+        if is_better_safety_total(means, self.best_safety_total, self.min_arrival):
+            self.best_safety_total = dict(means)
+            self.best_safety_total_step = int(self.num_timesteps)
+            self.model.save(os.path.join(self.save_dir, "best_safety_total"))
+            saved.append("best_safety_total")
+        stop = self.stop_rule.update(int(self.num_timesteps), arrival)
 
         # selected = safety winner if we have one, else arrival winner
         selected_name = "best_safety" if self.best_safety is not None else "best_arrival"
@@ -147,6 +169,8 @@ class OfficialMetricCheckpointCallback(BaseCallback):
                 f"saved={saved or 'none'}"
             )
             print("  (checkpoint rule: arrival + intrusion_time; sb3_return is ignored)\n")
+            if stop:
+                print(f"[stop rule] {stop}\n")
 
     def _write_selection(self):
         payload = {
@@ -159,7 +183,11 @@ class OfficialMetricCheckpointCallback(BaseCallback):
             "best_arrival": self.best_arrival,
             "best_safety_step": getattr(self, "best_safety_step", None),
             "best_safety": self.best_safety,
+            "best_safety_total_step": getattr(self, "best_safety_total_step", None),
+            "best_safety_total": self.best_safety_total,
             "selected": "best_safety" if self.best_safety is not None else "best_arrival",
+            "snapshots": {f"step_{k}": v for k, v in self.snapshots_saved.items()},
+            "stopped_early": self.stop_rule.reason,
         }
         with open(self.selection_path, "w") as f:
             json.dump(payload, f, indent=2)

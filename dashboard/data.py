@@ -136,8 +136,8 @@ def run_status(run_dir, now=None):
     now = time.time() if now is None else now
     status = read_json(os.path.join(run_dir, "status.json"))
     if status:
-        if status.get("state") == "finished":
-            return "finished", status
+        if status.get("state") in ("finished", "early_stopped"):
+            return status["state"], status
         stale_after = 6 * status["heartbeat_s"] if "heartbeat_s" in status else LEGACY_STALE_S
         if now - status.get("updated_at", 0) > stale_after:
             return "stopped", status
@@ -231,7 +231,8 @@ def run_detail(results_dir, name, now=None):
 OFFICIAL_KEYS = ("waypoint_reached", "flight_time", "intrusion_events", "intrusion_time",
                  "restricted_area_events", "time_in_restricted_area",
                  "sector_exit_events", "time_outside_sector")
-PAIRED_KEYS = ("intrusion_time", "time_in_restricted_area", "time_outside_sector", "flight_time")
+PAIRED_KEYS = OFFICIAL_KEYS
+SAFETY_TIME_KEYS = ("intrusion_time", "time_in_restricted_area", "time_outside_sector")
 
 
 def _official_table(path, neutral=None):
@@ -246,6 +247,11 @@ def _official_table(path, neutral=None):
             mean = sum(vals) / len(vals)
             out["means"][k] = mean
             out["stds"][k] = math.sqrt(sum((v - mean) ** 2 for v in vals) / len(vals))
+    clean = [all(cols[k][i] == 0 for k in SAFETY_TIME_KEYS) for i in range(n)]
+    out["clean_frac"] = sum(clean) / n
+    si = [v for v in cols.get("shield_interventions", []) if isinstance(v, float)]
+    if si:
+        out["shield_interventions"] = sum(si) / len(si)
     if neutral and len(neutral.get("episode_index", [])) == n:
         out["paired"] = {}
         for k in PAIRED_KEYS:

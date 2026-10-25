@@ -59,6 +59,21 @@ SECTOR_EXIT_EVENT_PENALTY = 2.0
 # Off by default so earlier runs stay reproducible.
 INTRUSION_TIME_WEIGHT = 0.0
 RESTRICTED_TIME_WEIGHT = 0.0
+SECTOR_TIME_WEIGHT = 0.0          # per simulated second outside the sector
+INTRUSION_EVENT_PENALTY = 0.0     # per new loss of separation (official intrusion_events)
+
+# --- action shield (goal_relative only) ---
+# SHIELD=1 replaces the policy heading with the nearest heading (5 deg steps,
+# up to +-90 deg) whose straight-line extrapolation stays clear of restricted
+# areas, the sector edge and constant-velocity intruders for the lookahead.
+SHIELD = 0
+SHIELD_LOOKAHEAD_S = 120.0
+SHIELD_OBSTACLE_BUFFER_KM = 2.0
+SHIELD_SECTOR_BUFFER_KM = 2.0
+SHIELD_INTRUDER_NM = 6.0
+# 0 = straight-line candidates (instant heading change). > 0 = simulate the turn
+# at this bank angle first (BlueSky's default A320 bank is 25 deg, ~1.7 deg/s).
+SHIELD_BANK_DEG = 0.0
 
 # --- world (must match official scoring; do not change for evaluation) ---
 INTRUSION_NM = 5.0
@@ -72,6 +87,9 @@ TUNABLE_KEYS = (
     "PROXIMITY_HORIZON_KM", "PROXIMITY_WEIGHT",
     "RESTRICTED_EVENT_PENALTY", "SECTOR_EXIT_EVENT_PENALTY",
     "INTRUSION_TIME_WEIGHT", "RESTRICTED_TIME_WEIGHT",
+    "SECTOR_TIME_WEIGHT", "INTRUSION_EVENT_PENALTY",
+    "SHIELD", "SHIELD_LOOKAHEAD_S", "SHIELD_OBSTACLE_BUFFER_KM",
+    "SHIELD_SECTOR_BUFFER_KM", "SHIELD_INTRUDER_NM", "SHIELD_BANK_DEG",
 )
 ACTION_MODES = ("relative", "goal_relative")
 

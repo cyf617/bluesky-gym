@@ -60,6 +60,7 @@ code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 .badge { font-size: 11px; padding: 2px 7px; border-radius: 999px; white-space: nowrap; }
 .badge.running { background: rgba(91,157,255,.18); color: var(--accent); }
 .badge.finished { background: rgba(62,207,142,.15); color: var(--good); }
+.badge.early_stopped { background: rgba(255,107,107,.15); color: var(--bad); }
 .badge.stopped { background: rgba(245,184,74,.15); color: var(--warn); }
 .tag { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: var(--border); color: var(--text); margin-right: 4px; }
 .baseline-box { margin-top: 16px; padding: 10px 12px; border: 1px dashed var(--border); border-radius: var(--radius); font-size: 12px; color: var(--muted); }

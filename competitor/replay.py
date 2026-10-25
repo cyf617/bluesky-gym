@@ -72,6 +72,8 @@ def _frame(base, action, reward, terms):
         "reward": round(float(reward), 4),
         "terms": {k: round(float(v), 4) for k, v in terms.items() if v},
         "metrics": {k: round(float(m[k]), 3) for k in METRIC_KEYS},
+        "shield": bool(getattr(base, "last_shield", {}).get(base.agent, False)) if action is not None else False,
+        "shield_count": int(getattr(base, "shield_interventions", {}).get(base.agent, 0)),
     }
 
 
@@ -86,7 +88,8 @@ def run_episode(env, act, seed=None):
         obs, reward, terminated, truncated, info = env.step(action)
         frames.append(_frame(base, action, reward, base.last_reward_terms.get(base.agent, {})))
         done = terminated or truncated
-    return static, frames, {k: float(info[k]) for k in METRIC_KEYS}
+    return static, frames, {**{k: float(info[k]) for k in METRIC_KEYS},
+                            "shield_interventions": float(info.get("shield_interventions", 0))}
 
 
 def load_policy(model_path, algo=None):

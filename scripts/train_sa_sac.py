@@ -36,6 +36,7 @@ from stable_baselines3.common.logger import configure
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecNormalize
 
 from competitor.callbacks import OfficialMetricCheckpointCallback
+from competitor.checkpoint_rule import ArrivalStopRule
 from competitor.config import ACTION_MODES, parse_overrides, resolve_mdp_config
 from competitor.telemetry import TrainingTelemetryCallback, write_json_atomic
 from competitor.vec_env import make_flattened_sa_env
@@ -123,6 +124,13 @@ def main():
     parser.add_argument("--save-dir", default=None)
     parser.add_argument("--run-name", default=None,
                         help="directory name under competitor/results (default <algo>_sa_v1)")
+    parser.add_argument("--stop-after", type=int, default=None,
+                        help="enable the arrival stop rule after this many steps")
+    parser.add_argument("--stop-min-arrival", type=float, default=0.95)
+    parser.add_argument("--stop-patience", type=int, default=2,
+                        help="consecutive evals below --stop-min-arrival before stopping")
+    parser.add_argument("--snapshot-steps", type=int, nargs="*", default=[],
+                        help="also keep step_<N>.zip at the first eval at or after N steps")
     parser.add_argument("--replay-episodes", type=int, default=5,
                         help="after training, record selected.zip on the first N seed-42 "
                              "episodes for the dashboard replay tab (0 = skip)")
@@ -179,6 +187,9 @@ def main():
         "hyperparams": hyperparams,
         "eval": {"freq": args.eval_freq, "episodes": args.eval_episodes,
                  "seed": args.eval_seed, "min_arrival": args.min_arrival},
+        "stop_rule": ({"after": args.stop_after, "min_arrival": args.stop_min_arrival,
+                       "patience": args.stop_patience} if args.stop_after is not None else None),
+        "snapshot_steps": args.snapshot_steps,
         "git_commit": git_commit(),
         "command": " ".join([os.path.basename(sys.executable), "-m", "scripts.train_sa_sac"]
                             + sys.argv[1:]),
@@ -200,20 +211,27 @@ def main():
     venv = build_vec_env(args.n_envs, args.seed, env_kwargs, norm_reward, args.gamma)
     model = build_model(args, venv)
     model.set_logger(configure(save_dir, ["stdout", "csv"]))
-    # Telemetry goes last so its "finished" heartbeat follows the final eval.
+    stop_rule = ArrivalStopRule(args.stop_after, args.stop_min_arrival, args.stop_patience)
+    eval_cb = OfficialMetricCheckpointCallback(
+        save_dir=save_dir,
+        eval_freq=args.eval_freq,
+        eval_episodes=args.eval_episodes,
+        eval_seed=args.eval_seed,
+        min_arrival=args.min_arrival,
+        env_kwargs=env_kwargs,
+        stop_rule=stop_rule,
+        snapshot_steps=args.snapshot_steps,
+        verbose=1,
+    )
+    # Telemetry goes last so its final heartbeat follows the final eval.
     callback = CallbackList([
-        OfficialMetricCheckpointCallback(
-            save_dir=save_dir,
-            eval_freq=args.eval_freq,
-            eval_episodes=args.eval_episodes,
-            eval_seed=args.eval_seed,
-            min_arrival=args.min_arrival,
-            env_kwargs=env_kwargs,
-            verbose=1,
-        ),
-        TrainingTelemetryCallback(save_dir=save_dir, total_timesteps=args.timesteps),
+        eval_cb,
+        TrainingTelemetryCallback(save_dir=save_dir, total_timesteps=args.timesteps,
+                                  stop_rule=stop_rule),
     ])
     model.learn(total_timesteps=args.timesteps, callback=callback, progress_bar=False)
+    if stop_rule.reason:
+        print(f"stopped early: {stop_rule.reason}")
     model.save(os.path.join(save_dir, "final"))
     print(f"training finished. selected checkpoint in {save_dir}/selected.zip")
     print(f"selection summary: {os.path.join(save_dir, 'selection.json')}")

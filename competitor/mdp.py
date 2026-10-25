@@ -34,6 +34,7 @@ from competitor.config import (
     resolve_mdp_config,
 )
 from competitor.geometry import latlon_to_nm, polygon_clearance, vertices_to_nm
+from competitor.shield import ShieldGeometry, choose_heading
 from competitor.observations import (
     NeighborObservationV1,
     ObstaclePolygonObservation,
@@ -45,7 +46,8 @@ from competitor.observations import (
 REWARD_TERMS = (
     "progress", "conflict_now", "conflict_predicted", "obstacle_proximity",
     "sector_proximity", "restricted_event", "sector_exit_event",
-    "intrusion_time", "restricted_time", "drift", "reach", "timeout",
+    "intrusion_time", "restricted_time", "sector_time", "intrusion_event",
+    "drift", "reach", "timeout",
 )
 
 
@@ -92,12 +94,19 @@ class CompetitionMdpV1:
 
         self._prev_goal_dist_km = {}
         self.last_reward_terms = {}
+        self.shield_interventions = {}
+        self.last_shield = {}
+        self._shield_geom = None
 
     def reset(self, **kwargs):
-        result = super().reset(**kwargs)
+        # Cleared before super().reset() because the env builds the first
+        # observation inside reset.
         self._prev_goal_dist_km = {}
         self.last_reward_terms = {}
-        return result
+        self.shield_interventions = {}
+        self.last_shield = {}
+        self._shield_geom = None
+        return super().reset(**kwargs)
 
     # ------------------------------------------------------------------ hooks
     def _get_obs(self, ac_id):
@@ -138,10 +147,37 @@ class CompetitionMdpV1:
         a_spd = float(np.clip(action[1], -1.0, 1.0))
         new_hdg = fn.bound_angle_positive_negative_180(
             qdr + a_hdg * self.mdp_cfg["GOAL_MAX_OFFSET_DEG"])
+        if self.mdp_cfg["SHIELD"]:
+            new_hdg = self._shielded_heading(ac_id, ac_idx, new_hdg)
         nominal_kt = getattr(self, "ac_spd", AIRSPEED_MEAN) * MpS2Kt
         new_spd = nominal_kt + a_spd * self.mdp_cfg["SPEED_RANGE_KT"]
         bs.stack.stack(f"HDG {ac_id} {new_hdg}")
         bs.stack.stack(f"SPD {ac_id} {new_spd}")
+
+    def _shielded_heading(self, ac_id, ac_idx, policy_hdg):
+        cfg = self.mdp_cfg
+        center = self.scenario.center
+        if self._shield_geom is None:
+            self._shield_geom = ShieldGeometry(
+                [vertices_to_nm(center, obs.vertices) for obs in self.scenario.obstacles],
+                vertices_to_nm(center, self.scenario.sector))
+        others = [j for j in range(bs.traf.ntraf) if j != ac_idx]
+        others_ne = [latlon_to_nm(center, bs.traf.lat[j], bs.traf.lon[j]) for j in others]
+        hdg_rad = np.deg2rad(bs.traf.hdg[others]) if others else np.zeros(0)
+        spd_nm_s = (bs.traf.tas[others] / 1852.0) if others else np.zeros(0)
+        others_vel = np.stack([np.cos(hdg_rad) * spd_nm_s, np.sin(hdg_rad) * spd_nm_s], axis=-1)
+        heading, intervened, _ = choose_heading(
+            policy_hdg,
+            latlon_to_nm(center, bs.traf.lat[ac_idx], bs.traf.lon[ac_idx]),
+            float(bs.traf.tas[ac_idx]), others_ne, others_vel, self._shield_geom,
+            lookahead_s=cfg["SHIELD_LOOKAHEAD_S"],
+            obstacle_buffer_km=cfg["SHIELD_OBSTACLE_BUFFER_KM"],
+            sector_buffer_km=cfg["SHIELD_SECTOR_BUFFER_KM"],
+            intruder_nm=cfg["SHIELD_INTRUDER_NM"],
+            own_hdg=float(bs.traf.hdg[ac_idx]), bank_deg=cfg["SHIELD_BANK_DEG"])
+        self.shield_interventions[ac_id] = self.shield_interventions.get(ac_id, 0) + int(intervened)
+        self.last_shield[ac_id] = intervened
+        return heading
 
     def _get_reward(self, ac_id):
         """Training signal only — does not affect scored metrics or termination.
@@ -218,6 +254,13 @@ class CompetitionMdpV1:
         d_restricted_s = m["time_in_restricted_area"] - base["time_in_restricted_area"]
         terms["intrusion_time"] = -cfg["INTRUSION_TIME_WEIGHT"] * d_intrusion_s
         terms["restricted_time"] = -cfg["RESTRICTED_TIME_WEIGHT"] * d_restricted_s
+
+        d_outside_s = m["time_outside_sector"] - base["time_outside_sector"]
+        d_intrusion_events = m["intrusion_events"] - base["intrusion_events"]
+        terms["sector_time"] = -cfg["SECTOR_TIME_WEIGHT"] * d_outside_s
+        terms["intrusion_event"] = -cfg["INTRUSION_EVENT_PENALTY"] * d_intrusion_events
+        if terms["sector_time"] or terms["intrusion_event"]:
+            threat = True
 
         if not threat:
             qdr, _ = kwikqdrdist(lat, lon, goal_lat, goal_lon)

@@ -19,6 +19,8 @@ METRIC_KEYS = [
     "sector_exit_events", "time_outside_sector",
     "total_reward",
 ]
+# Not a scored metric: how often the action shield replaced the policy heading.
+EXTRA_KEYS = ["shield_interventions"]
 
 # Neutral-policy 20-episode means on the default validation seed 123, from
 # competitor/results/baseline_sa_neutral_seed123_20.json (seed 42: baseline_sa_neutral_20.json).
@@ -64,14 +66,16 @@ def run_metric_episodes(env, act, n_episodes, seed):
         terminated = truncated = False
         while not (terminated or truncated):
             obs, _, terminated, truncated, info = env.step(act(obs))
-        records.append({k: info[k] for k in METRIC_KEYS})
+        records.append({**{k: info[k] for k in METRIC_KEYS},
+                        **{k: info.get(k, 0) for k in EXTRA_KEYS}})
     return records
 
 
 def summarize_records(records):
-    cols = {k: np.array([r[k] for r in records], dtype=float) for k in METRIC_KEYS}
-    means = {k: float(cols[k].mean()) for k in METRIC_KEYS}
-    stds = {k: float(cols[k].std()) for k in METRIC_KEYS}
+    keys = METRIC_KEYS + [k for k in EXTRA_KEYS if all(k in r for r in records)]
+    cols = {k: np.array([r[k] for r in records], dtype=float) for k in keys}
+    means = {k: float(cols[k].mean()) for k in keys}
+    stds = {k: float(cols[k].std()) for k in keys}
     return means, stds
 
 

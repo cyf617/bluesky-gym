@@ -31,3 +31,11 @@ def test_unknown_key_and_bad_mode_raise():
         resolve_mdp_config({"ACTION_MODE": "absolute"})
     with pytest.raises(ValueError):
         parse_overrides(["CONFLICT_WEIGHT"])
+
+
+def test_new_safety_and_shield_keys_default_off():
+    cfg = resolve_mdp_config()
+    for k in ("SECTOR_TIME_WEIGHT", "INTRUSION_EVENT_PENALTY", "SHIELD"):
+        assert cfg[k] == 0
+    assert resolve_mdp_config({"SHIELD": "1"})["SHIELD"] == 1
+    assert resolve_mdp_config({"SHIELD_LOOKAHEAD_S": "60"})["SHIELD_LOOKAHEAD_S"] == 60.0

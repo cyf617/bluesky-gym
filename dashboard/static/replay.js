@@ -4,7 +4,7 @@
   const C = {
     bg: "#0b1019", sector: "#3ecf8e", obstacle: "#3a4660", obstacleEdge: "#5b6b8c",
     route: "rgba(139,152,179,0.25)", goal: "#3ecf8e", agent: "#5b9dff", ghost: "rgba(200,208,224,0.55)",
-    intruder: "#e3e9f5", conflict: "#ff6b6b", restricted: "#b38cff", outside: "#f5b84a", text: "#e3e9f5", muted: "#8b98b3",
+    intruder: "#e3e9f5", conflict: "#ff6b6b", shield: "#4dd0e1", restricted: "#b38cff", outside: "#f5b84a", text: "#e3e9f5", muted: "#8b98b3",
   };
   const BASE_RATE = 60; // simulated seconds per real second at 1×
 
@@ -60,7 +60,7 @@
           <canvas class="replay-timeline" height="${ghost ? 54 : 30}"></canvas>
           <div class="legend small">
             <span style="--c:${C.agent}">训练模型</span>${ghost ? `<span class="dash" style="--c:#c8d0e0">中性 [0,0] 幽灵轨迹</span>` : ""}
-            <span style="--c:${C.conflict}">冲突 (&lt;5 NM)</span><span style="--c:${C.restricted}">限制区内</span><span style="--c:${C.outside}">扇区外</span>
+            <span style="--c:${C.shield}">过滤器介入（时间轴上方细线）</span><span style="--c:${C.conflict}">冲突 (&lt;5 NM)</span><span style="--c:${C.restricted}">限制区内</span><span style="--c:${C.outside}">扇区外</span>
           </div>
         </div>
         <div class="replay-side">
@@ -221,6 +221,7 @@
       if (fr.in_restricted) statusBits.push(`<span style="color:${C.restricted}">在限制区内</span>`);
       if (fr.outside) statusBits.push(`<span class="warn">在扇区外</span>`);
       if (m.waypoint_reached) statusBits.push(`<span class="good">已到达目标</span>`);
+      if (fr.shield) statusBits.push(`<span style="color:${C.shield}">过滤器改了航向</span>`);
       const terms = Object.entries(fr.terms || {}).sort((x, y) => Math.abs(y[1]) - Math.abs(x[1])).slice(0, 4);
       hud.innerHTML = `
         <div class="hud-status">${statusBits.join(" · ") || '<span class="muted">正常飞行</span>'}</div>
@@ -229,6 +230,7 @@
           <tr><td>距目标</td><td colspan="2">${dGoal.toFixed(1)} km</td></tr>
           <tr><td>动作（航向）</td><td colspan="2">${hdgTxt}</td></tr>
           <tr><td>动作（速度）</td><td colspan="2">${spdTxt}</td></tr>
+          ${fr.shield_count !== undefined ? `<tr><td>过滤器介入（累计）</td><td colspan="2">${fr.shield_count}</td></tr>` : ""}
           <tr><td>本步奖励 / 累计</td><td colspan="2">${fmtN(fr.reward, 2)} / ${fmtN(cum[cur.k], 1)}</td></tr>
           ${terms.length ? `<tr><td>本步主要分项</td><td colspan="2" class="small">${terms.map(([k, v]) => `${k} ${fmtN(v, 2)}`).join("<br>")}</td></tr>` : ""}
         </table>
@@ -255,6 +257,10 @@
         const end = fs[fs.length - 1].t;
         ctx.fillStyle = "#26324a"; ctx.fillRect(lab, y, ((w - lab) * end) / tEnd, rowH);
         for (let i = 1; i < fs.length; i++) {
+          if (fs[i].shield) {
+            const xs = lab + ((w - lab) * fs[i].t) / tEnd;
+            ctx.fillStyle = C.shield; ctx.fillRect(xs, y, 1, 3);
+          }
           const col = statusColor(fs[i]);
           if (!col) continue;
           const x0 = lab + ((w - lab) * fs[i - 1].t) / tEnd, x1 = lab + ((w - lab) * fs[i].t) / tEnd;
