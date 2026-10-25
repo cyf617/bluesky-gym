@@ -60,14 +60,17 @@
     return names.length ? names : (state.focused ? [state.focused] : []);
   };
   const STATE_LABEL = { running: "训练中", finished: "已完成", stopped: "已中断" };
-  // Evals run on a validation seed; compare against the neutral policy on that seed.
+  // Compare each run with the neutral policy on exactly its eval scenarios (seed + episode count).
   function baselineFor(name) {
     const run = state.runs.find((r) => r.name === name);
     const seed = String(run && run.eval_seed != null ? run.eval_seed : 123);
-    const b = state.baselines[seed];
-    if (b) return { ...b, matched: true };
-    const fallback = state.baselines["42"] || Object.values(state.baselines)[0];
-    return fallback ? { ...fallback, matched: false, wanted: seed } : null;
+    const eps = String(run && run.eval_episodes != null ? run.eval_episodes : 20);
+    const exact = state.baselines[`${seed}:${eps}`];
+    if (exact) return { ...exact, matched: true };
+    const fallback = Object.entries(state.baselines).find(([k]) => k.startsWith(`${seed}:`))
+      || Object.entries(state.baselines).find(([k]) => k.startsWith("42:"))
+      || Object.entries(state.baselines)[0];
+    return fallback ? { ...fallback[1], matched: false, wanted: seed, wantedEps: eps } : null;
   }
 
   async function getJSON(url) {
@@ -131,7 +134,7 @@
           <div class="run-meta">
             ${r.algo ? `<span class="tag">${r.algo.toUpperCase()}</span>` : ""}
             ${r.action_mode ? `<span class="tag">${esc(r.action_mode)}</span>` : ""}
-            ${fmt(r.timesteps)} / ${fmt(r.total_timesteps)} 步 · ${ago(r.updated_at)}
+            ${fmt(r.timesteps)} / ${fmt(r.total_timesteps)} 步 · ${ago(r.updated_at)}${r.n_replays ? ` · <span class="good">回放 ${r.n_replays}</span>` : ""}
           </div>
           <div class="run-kpis">
             <span>到达 <b>${ev.waypoint_reached != null ? (100 * ev.waypoint_reached).toFixed(0) + "%" : "—"}</b></span>
@@ -150,9 +153,9 @@
       persist(); refresh();
     }));
 
-    const seeds = Object.keys(state.baselines).sort((a, b) => Number(a) - Number(b));
+    const seeds = Object.keys(state.baselines).sort();
     $("#baseline-box").innerHTML = seeds.length ? `<b>中性 [0,0] 基线</b>
-      <table><tr><td></td>${seeds.map((sd) => `<td style="text-align:right">seed ${sd}</td>`).join("")}</tr>
+      <table><tr><td></td>${seeds.map((sd) => `<td style="text-align:right">seed ${sd.split(":")[0]}<br><span class="small">${sd.split(":")[1]} 回合</span></td>`).join("")}</tr>
       ${METRICS.map((m) => `<tr><td>${m.label}</td>${seeds.map((sd) => `<td style="text-align:right">${metricFmt(m, metricVal(m, state.baselines[sd].means[m.key]))}</td>`).join("")}</tr>`).join("")}</table>
       <div class="small" style="margin-top:6px">验证评估默认用 seed 123；官方成绩用 seed 42。</div>`
       : "未找到 baseline_sa_neutral*.json（运行 <code>python -m scripts.run_neutral_baseline --seed 123</code>）";
@@ -163,7 +166,7 @@
     document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === state.tab));
     document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.id === `tab-${state.tab}`));
     ({ overview: renderOverview, metrics: renderMetrics, training: renderTraining,
-       reward: renderReward, episodes: renderEpisodes, config: renderConfig })[state.tab]();
+       reward: renderReward, episodes: renderEpisodes, replay: renderReplay, config: renderConfig })[state.tab]();
   }
 
   const focusedDetail = () => state.details[state.focused];
@@ -265,7 +268,7 @@
         ${cfg.command ? `<pre class="cmd">${esc(cfg.command)}</pre>` : ""}
       </div>
       <h3 class="section-title">最近一次评估${ev ? `（第 ${fmt(ev.timesteps)} 步，验证 seed ${s.eval_seed ?? 123}）` : ""}
-        <span class="muted small">${bl ? (bl.matched ? `对比基线：${esc(bl.label)}` : `<span class="warn">没有 seed ${bl.wanted} 的基线，暂用 ${esc(bl.label)}；运行 python -m scripts.run_neutral_baseline --seed ${bl.wanted}</span>`) : ""}</span></h3>
+        <span class="muted small">${bl ? (bl.matched ? `对比基线：${esc(bl.label)}` : `<span class="warn">没有 seed ${bl.wanted}、${bl.wantedEps} 回合的基线，暂用 ${esc(bl.label)}；运行 python -m scripts.run_neutral_baseline --seed ${bl.wanted} --episodes ${bl.wantedEps}</span>`) : ""}</span></h3>
       <div class="grid kpis">${kpis}</div>
       <h3 class="section-title">自动诊断</h3>
       <div class="panel">${diagnose(d).map(([cls, text]) => `<p class="${cls}" style="margin:4px 0">• ${esc(text)}</p>`).join("")}</div>
@@ -286,7 +289,7 @@
     const bl = baselineFor(state.focused);
     const base = bl ? bl.means : null;
     const head = `<tr><th>运行</th><th>状态</th><th>算法</th><th>动作模式</th><th>步数</th>${METRICS.map((m) => `<th>${m.label}</th>`).join("")}</tr>`;
-    const baseRow = base ? `<tr><td class="muted">中性基线 [0,0]（seed ${bl.seed}）</td><td></td><td></td><td></td><td></td>${METRICS.map((m) => `<td class="muted">${metricFmt(m, metricVal(m, base[m.key]))}</td>`).join("")}</tr>` : "";
+    const baseRow = base ? `<tr><td class="muted">中性基线 [0,0]（seed ${bl.seed}，${bl.episodes} 回合）</td><td></td><td></td><td></td><td></td>${METRICS.map((m) => `<td class="muted">${metricFmt(m, metricVal(m, base[m.key]))}</td>`).join("")}</tr>` : "";
     const rows = state.runs.map((r) => {
       const ev = r.last_eval || {};
       return `<tr data-run="${esc(r.name)}" style="cursor:pointer">
@@ -336,7 +339,7 @@
       const bv = bl ? bl.means[m.key] : undefined;
       chartPanel(grid, `${m.label}${m.unit ? ` (${m.unit})` : ""} <span class="muted">${m.better === "high" ? "越高越好" : "越低越好"}</span>`, {
         series,
-        hLines: bv !== undefined ? [{ y: bv * (m.scale || 1), label: `中性基线 seed ${bl.seed}` }] : [],
+        hLines: bv !== undefined ? [{ y: bv * (m.scale || 1), label: `中性基线 seed ${bl.seed}/${bl.episodes}` }] : [],
         yMin: m.key === "waypoint_reached" ? 0 : undefined,
         yMax: m.key === "waypoint_reached" ? 100 : undefined,
         emptyText: "还没有评估数据",
@@ -464,9 +467,9 @@
     chartPanel(grid, "训练回合到达率 (%)，滑动 50", { series: roll("waypoint_reached", 100), yMin: 0, yMax: 100 });
     const bl = baselineFor(state.focused);
     chartPanel(grid, "训练回合冲突时间 (s)，滑动 50", { series: roll("intrusion_time"),
-      hLines: bl ? [{ y: bl.means.intrusion_time, label: `中性基线 seed ${bl.seed}` }] : [] });
+      hLines: bl ? [{ y: bl.means.intrusion_time, label: `中性基线 seed ${bl.seed}/${bl.episodes}` }] : [] });
     chartPanel(grid, "训练回合限制区时间 (s)，滑动 50", { series: roll("time_in_restricted_area"),
-      hLines: bl ? [{ y: bl.means.time_in_restricted_area, label: `中性基线 seed ${bl.seed}` }] : [] });
+      hLines: bl ? [{ y: bl.means.time_in_restricted_area, label: `中性基线 seed ${bl.seed}/${bl.episodes}` }] : [] });
 
     const n = xs.length, start = Math.max(0, n - 30);
     const cols = ["timesteps", "ep_return", "waypoint_reached", "flight_time", "intrusion_time", "time_in_restricted_area", "time_outside_sector"];
@@ -480,6 +483,61 @@
       }).join("")}</tr>`;
     }
     $("#ep-table").innerHTML = `<table class="data"><tr>${labels.map((l) => `<th>${l}</th>`).join("")}</tr>${rows}</table>`;
+  }
+
+  // ---------------------------------------------------------------- replay
+  const replay = { run: null, file: null, viewer: null, index: null };
+
+  async function renderReplay() {
+    const root = $("#replay-content");
+    const name = state.focused;
+    if (!name) { root.innerHTML = `<div class="empty">选择左侧的运行</div>`; return; }
+    if (replay.run === name && replay.viewer && root.querySelector(".replay-wrap")) return;
+    if (replay.viewer) { replay.viewer.destroy(); replay.viewer = null; }
+    let index;
+    try { index = await getJSON(`/api/run/${encodeURIComponent(name)}/replays`); }
+    catch (err) { root.innerHTML = `<div class="panel bad">${esc(err.message)}</div>`; return; }
+    if (state.focused !== name) return;
+    replay.run = name; replay.index = index;
+    if (!index.episodes.length) {
+      root.innerHTML = `<div class="panel empty">这个运行还没有评估回放。新版训练脚本会在训练结束时自动录制 selected.zip 在 seed 42 前 5 个回合的表现；已有模型可以手动录制：
+        <pre class="cmd">SDL_VIDEODRIVER=dummy python -m scripts.record_replays --run-dir competitor/results/${esc(name)}</pre></div>`;
+      return;
+    }
+    const files = index.episodes.map((e) => e.file);
+    if (!files.includes(replay.file)) replay.file = files[0];
+    const chip = (e) => {
+      const m = e.metrics, n = e.neutral_metrics;
+      const cmp = (v, nv) => n ? (v < nv ? "good" : v > nv ? "bad" : "") : "";
+      return `<div class="ep-chip ${e.file === replay.file ? "active" : ""}" data-file="${e.file}">
+        <b>回合 ${e.episode_index}</b> ${m.waypoint_reached ? '<span class="good">✓ 到达</span>' : '<span class="bad">✗ 未到达</span>'}<br>
+        冲突 <span class="${cmp(m.intrusion_time, n && n.intrusion_time)}">${fmt(m.intrusion_time)}s</span>${n ? ` <span class="muted">(中性 ${fmt(n.intrusion_time)})</span>` : ""}<br>
+        限制区 <span class="${cmp(m.time_in_restricted_area, n && n.time_in_restricted_area)}">${fmt(m.time_in_restricted_area)}s</span>${n ? ` <span class="muted">(中性 ${fmt(n.time_in_restricted_area)})</span>` : ""}<br>
+        飞行 ${fmt(m.flight_time)}s${n ? ` <span class="muted">(中性 ${fmt(n.flight_time)})</span>` : ""}
+      </div>`;
+    };
+    const tot = (key, src) => index.episodes.reduce((a, e) => a + (((src === "n" ? e.neutral_metrics : e.metrics) || {})[key] || 0), 0);
+    root.innerHTML = `
+      <p class="hint">模型 <b>${esc(index.model || index.policy)}</b> 在 seed ${index.seed} 前 ${index.episodes.length} 个回合（与官方评估的前几个场景相同）上的确定性回放；灰色虚线是中性 [0,0] 策略在同一场景的轨迹。
+        合计冲突 ${fmt(tot("intrusion_time"))} s（中性 ${fmt(tot("intrusion_time", "n"))} s），合计限制区 ${fmt(tot("time_in_restricted_area"))} s（中性 ${fmt(tot("time_in_restricted_area", "n"))} s）。</p>
+      <div class="ep-chips">${index.episodes.map(chip).join("")}</div>
+      <div id="replay-viewer"><div class="empty">加载中…</div></div>`;
+    root.querySelectorAll(".ep-chip").forEach((c) => c.addEventListener("click", () => {
+      replay.file = c.dataset.file;
+      root.querySelectorAll(".ep-chip").forEach((x) => x.classList.toggle("active", x === c));
+      loadEpisode(name);
+    }));
+    await loadEpisode(name);
+  }
+
+  async function loadEpisode(name) {
+    if (replay.viewer) { replay.viewer.destroy(); replay.viewer = null; }
+    const host = $("#replay-viewer");
+    host.innerHTML = `<div class="empty">加载中…</div>`;
+    const ep = await getJSON(`/api/run/${encodeURIComponent(name)}/replay/${replay.file}`);
+    if (replay.run !== name) return;
+    const cfg = ((state.details[name] || {}).config || {}).mdp || {};
+    replay.viewer = window.ReplayViewer.mount(host, ep, { mdp: cfg });
   }
 
   // ---------------------------------------------------------------- config
@@ -561,6 +619,7 @@
 
   // ------------------------------------------------------------------ init
   document.querySelectorAll("#tabs button").forEach((b) => b.addEventListener("click", () => {
+    if (b.dataset.tab !== "replay" && replay.viewer) { replay.viewer.destroy(); replay.viewer = null; replay.run = null; }
     state.tab = b.dataset.tab; persist(); renderTab();
   }));
   $("#refresh-btn").addEventListener("click", refresh);
@@ -572,7 +631,8 @@
   let timer = null;
   const schedule = () => {
     clearInterval(timer);
-    if ($("#auto-refresh").checked) timer = setInterval(() => { if (state.tab !== "config") refresh(); }, 10000);
+    // Forms and the replay player keep local state; do not rebuild them under the user.
+    if ($("#auto-refresh").checked) timer = setInterval(() => { if (!["config", "replay"].includes(state.tab)) refresh(); }, 10000);
   };
   $("#auto-refresh").addEventListener("change", schedule);
   window.addEventListener("resize", () => renderTab());

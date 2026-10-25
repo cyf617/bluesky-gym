@@ -122,4 +122,20 @@ table.data tr.diff td { background: rgba(245,184,74,.08); }
 pre.cmd { background: #0a0e16; border: 1px solid var(--border); border-radius: 8px; padding: 12px; white-space: pre-wrap; word-break: break-all; font-size: 12px; margin: 10px 0; }
 .section-title { margin: 18px 0 10px; font-size: 14px; }
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.replay-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 14px; }
+.replay-stage { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; }
+.replay-canvas { width: 100%; display: block; border-radius: 6px; }
+.replay-timeline { width: 100%; display: block; margin-top: 8px; cursor: pointer; }
+.replay-controls { display: flex; gap: 6px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+.replay-slider { flex: 1; min-width: 160px; accent-color: var(--accent); }
+.replay-side { display: flex; flex-direction: column; gap: 12px; }
+.replay-side .toggle { margin: 4px 0; }
+.hud-status { margin-bottom: 8px; font-size: 13px; }
+.hud-table td { text-align: left !important; }
+.hud-table td + td { text-align: right !important; }
+.ep-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.ep-chip { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; cursor: pointer; font-size: 12px; min-width: 150px; }
+.ep-chip.active { border-color: var(--accent); outline: 1px solid var(--accent); }
+.ep-chip b { font-size: 13px; }
+@media (max-width: 1300px) { .replay-wrap { grid-template-columns: 1fr; } }
 @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } .sidebar { position: static; max-height: none; } .two-col { grid-template-columns: 1fr; } }

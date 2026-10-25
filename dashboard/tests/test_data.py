@@ -91,9 +91,9 @@ def test_discover_and_summary(tmp_path):
         "policy": "neutral", "seed": 123, "episodes": 20,
         "metrics": [{"key": "intrusion_time", "mean": 64.75, "std": 88.5}]}))
     baselines = data.load_baselines(str(results))
-    assert set(baselines) == {"42", "123"}
-    assert baselines["42"]["means"]["waypoint_reached"] == 1.0
-    assert baselines["123"]["means"]["intrusion_time"] == 64.75
+    assert set(baselines) == {"42:20", "123:20"}
+    assert baselines["42:20"]["means"]["waypoint_reached"] == 1.0
+    assert baselines["123:20"]["means"]["intrusion_time"] == 64.75
 
 
 def test_downsample_keeps_last_point():

@@ -204,7 +204,9 @@ def run_summary(results_dir, name, now=None):
         "last_eval": _last_row(evals),
         "n_evals": len(evals.get("timesteps", [])),
         "eval_seed": (config.get("eval") or {}).get("seed", (selection or {}).get("eval_seed")),
+        "eval_episodes": (config.get("eval") or {}).get("episodes", (selection or {}).get("eval_episodes")),
         "selected": (selection or {}).get("selected"),
+        "n_replays": len((read_json(os.path.join(run_dir, "replays", "index.json")) or {}).get("episodes", [])),
         "best_safety_step": (selection or {}).get("best_safety_step"),
         "best_arrival_step": (selection or {}).get("best_arrival_step"),
     }
@@ -225,17 +227,25 @@ def run_detail(results_dir, name, now=None):
     }
 
 
-def load_baselines(results_dir):
-    """{seed: baseline} for every ``baseline_sa_neutral*.json`` in the results dir.
+def replay_index(results_dir, name):
+    """``replays/index.json`` written by ``competitor.replay``, or an empty index."""
+    index = read_json(os.path.join(results_dir, name, "replays", "index.json"))
+    return index or {"episodes": []}
 
-    Checkpoint evals run on a validation seed, so each run is compared with
-    the neutral policy on the same seed (``scripts.run_neutral_baseline --seed``).
+
+def load_baselines(results_dir):
+    """{"<seed>:<episodes>": baseline} for every ``baseline_sa_neutral*.json``.
+
+    Checkpoint evals run on a validation seed and episode count, and the mean
+    over the first 20 vs 50 scenarios differs a lot, so each run is compared
+    with the neutral policy on exactly the same scenarios
+    (``scripts.run_neutral_baseline --seed S --episodes N``).
     """
     out = {}
     for path in sorted(glob.glob(os.path.join(results_dir, "baseline_sa_neutral*.json"))):
         baseline = load_baseline(path)
         if baseline and baseline["seed"] is not None:
-            out.setdefault(str(baseline["seed"]), baseline)
+            out.setdefault(f"{baseline['seed']}:{baseline['episodes']}", baseline)
     return out
 
 
@@ -252,6 +262,7 @@ def load_baseline(path):
             table["waypoint_reached"] /= 100.0
     return {
         "seed": data.get("seed"),
+        "episodes": data.get("episodes"),
         "label": f"{data.get('policy', 'neutral')} · seed {data.get('seed')} · "
                  f"{data.get('episodes')} eps",
         "means": means,

@@ -40,6 +40,7 @@
         <button data-tab="training">训练曲线</button>
         <button data-tab="reward">奖励分解</button>
         <button data-tab="episodes">回合明细</button>
+        <button data-tab="replay">评估回放</button>
         <button data-tab="config">参数与调参</button>
       </nav>
 
@@ -62,6 +63,9 @@
       <section id="tab-episodes" class="tab">
         <div id="episodes-content"></div>
       </section>
+      <section id="tab-replay" class="tab">
+        <div id="replay-content"></div>
+      </section>
       <section id="tab-config" class="tab">
         <div id="config-content"></div>
       </section>
@@ -70,6 +74,7 @@
 
   <div id="tooltip" class="tooltip"></div>
   <script src="/charts.js"></script>
+  <script src="/replay.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

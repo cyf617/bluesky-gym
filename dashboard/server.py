@@ -4,8 +4,9 @@
     python -m dashboard --results competitor/results --port 8050
     python -m dashboard --host 0.0.0.0                    # expose on the network
 
-Endpoints: ``/api/runs``, ``/api/run/<name>``, ``/api/tunables``; everything
-else is served from ``dashboard/static``.
+Endpoints: ``/api/runs``, ``/api/run/<name>``, ``/api/run/<name>/replays``,
+``/api/run/<name>/replay/ep<i>.json``, ``/api/tunables``; everything else is
+served from ``dashboard/static``.
 """
 
 from __future__ import annotations
@@ -15,12 +16,14 @@ import json
 import math
 import mimetypes
 import os
+import re
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote, urlparse
 
 from dashboard import data
 
+REPLAY_FILE = re.compile(r"^ep\d+\.json$")
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 DEFAULT_RESULTS = os.path.join("competitor", "results")
 
@@ -73,10 +76,19 @@ def make_handler(results_dir):
                         "baselines": data.load_baselines(results_dir),
                     })
                 if path.startswith("/api/run/"):
-                    name = path[len("/api/run/"):]
+                    name, _, rest = path[len("/api/run/"):].partition("/")
                     if name not in data.discover_runs(results_dir):
                         return self._json({"error": f"unknown run {name!r}"}, HTTPStatus.NOT_FOUND)
-                    return self._json(data.run_detail(results_dir, name))
+                    if rest == "":
+                        return self._json(data.run_detail(results_dir, name))
+                    if rest == "replays":
+                        return self._json(data.replay_index(results_dir, name))
+                    if rest.startswith("replay/") and REPLAY_FILE.match(rest[len("replay/"):]):
+                        file_path = os.path.join(results_dir, name, "replays", rest[len("replay/"):])
+                        if os.path.isfile(file_path):
+                            with open(file_path, "rb") as f:
+                                return self._send(HTTPStatus.OK, f.read(), "application/json; charset=utf-8")
+                    return self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
                 if path == "/api/tunables":
                     return self._json(tunables_payload())
             except Exception as exc:  # surface parse errors in the UI instead of a dead socket

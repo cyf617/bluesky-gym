@@ -1,0 +1,2 @@
+timesteps,sb3_ep_rew_mean,waypoint_reached,flight_time,intrusion_events,intrusion_time,restricted_area_events,time_in_restricted_area,sector_exit_events,time_outside_sector,total_reward,waypoint_reached_std,flight_time_std,intrusion_events_std,intrusion_time_std,restricted_area_events_std,time_in_restricted_area_std,sector_exit_events_std,time_outside_sector_std,total_reward_std
+4,nan,1.0,867.38,1.24,97.14,0.96,120.5,0.0,0.0,95.62680955132316,0.0,135.61104527286855,1.1757550765359255,111.5435358951831,0.9991996797437437,156.45219717217142,0.0,0.0,4.143421338755724
