@@ -1,10 +1,10 @@
 {
   "state": "running",
-  "timesteps": 49048,
+  "timesteps": 143360,
   "total_timesteps": 1000000,
-  "episodes": 262,
-  "fps": 100.1,
+  "episodes": 750,
+  "fps": 107.8,
   "started_at": 1792935092.8748047,
-  "updated_at": 1792935583.0037096,
+  "updated_at": 1792936423.2877119,
   "heartbeat_s": 10.0
 }

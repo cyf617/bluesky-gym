@@ -13,29 +13,29 @@
     "sector_exit_events": 0.0,
     "time_outside_sector": 0.0
   },
-  "best_arrival_step": 4,
+  "best_arrival_step": 100004,
   "best_arrival": {
     "waypoint_reached": 1.0,
-    "flight_time": 867.38,
-    "intrusion_events": 1.24,
-    "intrusion_time": 97.14,
-    "restricted_area_events": 0.96,
-    "time_in_restricted_area": 120.5,
-    "sector_exit_events": 0.0,
-    "time_outside_sector": 0.0,
-    "total_reward": 88.35980955132318
+    "flight_time": 1149.2,
+    "intrusion_events": 1.14,
+    "intrusion_time": 92.86,
+    "restricted_area_events": 0.82,
+    "time_in_restricted_area": 144.8,
+    "sector_exit_events": 0.14,
+    "time_outside_sector": 110.66,
+    "total_reward": 84.50247678903291
   },
-  "best_safety_step": 4,
+  "best_safety_step": 100004,
   "best_safety": {
     "waypoint_reached": 1.0,
-    "flight_time": 867.38,
-    "intrusion_events": 1.24,
-    "intrusion_time": 97.14,
-    "restricted_area_events": 0.96,
-    "time_in_restricted_area": 120.5,
-    "sector_exit_events": 0.0,
-    "time_outside_sector": 0.0,
-    "total_reward": 88.35980955132318
+    "flight_time": 1149.2,
+    "intrusion_events": 1.14,
+    "intrusion_time": 92.86,
+    "restricted_area_events": 0.82,
+    "time_in_restricted_area": 144.8,
+    "sector_exit_events": 0.14,
+    "time_outside_sector": 110.66,
+    "total_reward": 84.50247678903291
   },
   "selected": "best_safety"
 }

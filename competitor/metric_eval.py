@@ -7,6 +7,9 @@ return — so checkpoint decisions match how the competition is judged.
 
 from __future__ import annotations
 
+import json
+import os
+
 import numpy as np
 
 METRIC_KEYS = [
@@ -29,6 +32,24 @@ NEUTRAL_BASELINE = {
     "sector_exit_events": 0.0,
     "time_outside_sector": 0.0,
 }
+
+
+def load_neutral_baseline(seed, n_episodes, results_dir=os.path.join("competitor", "results")):
+    """Neutral means on exactly these eval scenarios, if that baseline file exists.
+
+    ``scripts.run_neutral_baseline --seed S --episodes N`` writes it. Falls back
+    to ``NEUTRAL_BASELINE`` (seed 123, 20 episodes).
+    """
+    stem = (f"baseline_sa_neutral_{n_episodes}" if seed == 42
+            else f"baseline_sa_neutral_seed{seed}_{n_episodes}")
+    path = os.path.join(results_dir, stem + ".json")
+    if not os.path.exists(path):
+        return dict(NEUTRAL_BASELINE)
+    with open(path) as f:
+        rows = json.load(f)["metrics"]
+    means = {r["key"]: r["mean"] for r in rows}
+    means["waypoint_reached"] /= 100.0  # stored in percent
+    return means
 
 
 def run_metric_episodes(env, act, n_episodes, seed):

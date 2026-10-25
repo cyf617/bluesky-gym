@@ -90,7 +90,7 @@
     let W = 0, H = 0, scale = 1, ox = 0, oy = 0, dpr = 1;
     function resize() {
       dpr = window.devicePixelRatio || 1;
-      W = canvas.clientWidth; H = Math.min(W * 0.85, window.innerHeight * 0.72);
+      W = canvas.clientWidth; H = Math.max(320, Math.min(W * 0.7, window.innerHeight - 330));
       canvas.style.height = H + "px";
       canvas.width = W * dpr; canvas.height = H * dpr;
       scale = Math.min(W / (maxX - minX), H / (maxY - minY));
@@ -178,7 +178,9 @@
 
       // Agent.
       if (state.show.trail) trail(ctx, frames, cur.k, t, C.agent, false);
-      plane(ctx, cur.x, cur.y, cur.hdg, 12, statusColor(fr) || C.agent, "#0b1019");
+      ctx.beginPath(); ctx.arc(X(cur.x), Y(cur.y), 13, 0, 2 * Math.PI);
+      ctx.strokeStyle = statusColor(fr) || C.agent; ctx.globalAlpha = 0.5; ctx.lineWidth = 2; ctx.stroke(); ctx.globalAlpha = 1;
+      plane(ctx, cur.x, cur.y, cur.hdg, 15, statusColor(fr) || C.agent, "#0b1019");
 
       // Scale bar + north arrow.
       const barKm = niceKm((maxX - minX) / 6);

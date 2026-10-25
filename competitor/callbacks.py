@@ -39,7 +39,7 @@ from stable_baselines3.common.callbacks import BaseCallback
 from competitor.checkpoint_rule import is_better_arrival, is_better_safety
 from competitor.metric_eval import (
     METRIC_KEYS,
-    NEUTRAL_BASELINE,
+    load_neutral_baseline,
     arrival_and_safety,
     run_metric_episodes,
     summarize_records,
@@ -54,6 +54,7 @@ class OfficialMetricCheckpointCallback(BaseCallback):
                  min_arrival=0.90, env_kwargs=None, verbose=1):
         super().__init__(verbose)
         self.env_kwargs = dict(env_kwargs or {})
+        self.neutral = load_neutral_baseline(int(eval_seed), int(eval_episodes))
         self.save_dir = save_dir
         self.eval_freq = int(eval_freq)
         self.eval_episodes = int(eval_episodes)
@@ -133,12 +134,12 @@ class OfficialMetricCheckpointCallback(BaseCallback):
         self._write_selection()
 
         if self.verbose:
-            vs_neutral = intrusion - NEUTRAL_BASELINE["intrusion_time"]
+            vs_neutral = intrusion - self.neutral["intrusion_time"]
             print(
                 f"\n[eval t={self.num_timesteps}] "
                 f"arrival={100 * arrival:.1f}%  "
                 f"intrusion_time={intrusion:.1f}s "
-                f"(neutral {NEUTRAL_BASELINE['intrusion_time']:.1f}s, "
+                f"(neutral {self.neutral['intrusion_time']:.1f}s, "
                 f"Δ={vs_neutral:+.1f})  "
                 f"restricted_time={means['time_in_restricted_area']:.1f}s  "
                 f"sb3_return={sb3_return}  "
@@ -152,7 +153,7 @@ class OfficialMetricCheckpointCallback(BaseCallback):
             "eval_seed": self.eval_seed,
             "eval_episodes": self.eval_episodes,
             "note": "selected uses official metrics only; sb3_ep_rew_mean is not used",
-            "neutral_baseline": NEUTRAL_BASELINE,
+            "neutral_baseline": self.neutral,
             "best_arrival_step": getattr(self, "best_arrival_step", None),
             "best_arrival": self.best_arrival,
             "best_safety_step": getattr(self, "best_safety_step", None),
